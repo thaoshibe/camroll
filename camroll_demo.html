@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>camroll · demo</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script>
+  // Set theme before paint to avoid flash-of-wrong-theme.
+  (function() {
+    var t = null;
+    try { t = localStorage.getItem('camroll-theme'); } catch (e) {}
+    if (!t) t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', t);
+  })();
+</script>
+<style>
+/* ── THEME TOKENS ─────────────────────────────────────────────── */
+:root,
+:root[data-theme="dark"] {
+  --bg:            #0f0f0f;
+  --bg-elev:       #161616;
+  --bg-elev-2:     #1a1a1a;
+  --bg-elev-3:     #1c1c1c;
+  --border:        #2a2a2a;
+  --border-strong: #5a5a5a;
+  --text:          #ffffff;
+  --text-mid:      #d8d4cc;
+  --text-soft:     #b8b3a8;
+  --text-dim:      #8e8a80;
+  --text-faint:    #6f6a60;
+  --text-ghost:    #555044;
+  --accent:        #c8f060;
+  --accent-text:   #c8f060;
+  --accent-bub-bg: #191e10;
+  --accent-bub-text: #d0e498;
+  --accent-soft:   rgba(200,240,96,0.13);
+  --accent-glow:   rgba(200,240,96,0.4);
+  --accent-tint:   rgba(200,240,96,0.05);
+  --accent-ring:   rgba(200,240,96,0.3);
+  --highlight:     #c8f060;
+  --highlight-glow: rgba(200,240,96,0.55);
+  --shadow:        rgba(0,0,0,0.45);
+  --thumb-cap-bg:  linear-gradient(transparent, rgba(0,0,0,0.78));
+  --thumb-cap-text: rgba(255,255,255,0.78);
+  --lb-bg:         rgba(0,0,0,0.94);
+  --hover-overlay-bg: rgba(0,0,0,0.65);
+  --scrollbar:     #252525;
+}
+:root[data-theme="light"] {
+  --bg:            #fafafa;
+  --bg-elev:       #ffffff;
+  --bg-elev-2:     #f2f2f2;
+  --bg-elev-3:     #ededed;
+  --border:        #e2e2e2;
+  --border-strong: #888888;
+  --text:          #000000;
+  --text-mid:      #111111;
+  --text-soft:     #222222;
+  --text-dim:      #444444;
+  --text-faint:    #6a6a6a;
+  --text-ghost:    #8a8a8a;
+  --accent:        #2f6f0f;
+  --accent-text:   #2a6310;
+  --accent-bub-bg: #eef5dc;
+  --accent-bub-text: #1c3a08;
+  --accent-soft:   rgba(47,111,15,0.18);
+  --accent-glow:   rgba(47,111,15,0.35);
+  --accent-tint:   rgba(47,111,15,0.07);
+  --accent-ring:   rgba(47,111,15,0.45);
+  --highlight:      #e91e63;
+  --highlight-glow: rgba(233,30,99,0.55);
+  --shadow:        rgba(0,0,0,0.10);
+  --thumb-cap-bg:  linear-gradient(transparent, rgba(0,0,0,0.65));
+  --thumb-cap-text: rgba(255,255,255,0.95);
+  --lb-bg:         rgba(20,20,20,0.92);
+  --hover-overlay-bg: rgba(255,255,255,0.85);
+  --scrollbar:     #cccccc;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg); color: var(--text); font-size: 16px;
+  transition: background 0.18s, color 0.18s;
+}
+
+.screen { width: 100%; height: 100%; display: none; flex-direction: column; }
+.screen.active { display: flex; }
+
+/* ── THEME TOGGLE BUTTON ─────────────────────────────────────── */
+.theme-toggle {
+  background: none; border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text-soft); cursor: pointer;
+  width: 30px; height: 30px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 14px; line-height: 1; padding: 0;
+  transition: all 0.15s; flex-shrink: 0;
+}
+.theme-toggle:hover { color: var(--text); border-color: var(--border-strong); background: var(--bg-elev); }
+.theme-toggle .icon-dark, .theme-toggle .icon-light { display: none; }
+:root[data-theme="dark"] .theme-toggle .icon-dark { display: inline; }
+:root[data-theme="light"] .theme-toggle .icon-light { display: inline; }
+
+/* ── PICKER ── */
+#picker {
+  align-items: stretch;
+  padding: 3rem 2rem 2rem; overflow-y: auto; position: relative;
+}
+#picker-toggle {
+  position: absolute; top: 1.25rem; right: 1.5rem;
+}
+.picker-inner { width: 100%; max-width: 1100px; margin: 0 auto; text-align: left; }
+.picker-eyebrow {
+  font-family: 'DM Sans', sans-serif; font-size: 13px;
+  letter-spacing: 0.04em; color: var(--text-mid);
+  margin-bottom: 0.7rem; font-weight: 500;
+}
+.picker-title { font-size: 2.5rem; font-weight: 300; line-height: 1.2; margin-bottom: 0.6rem; color: var(--text); }
+.picker-title strong { font-weight: 500; }
+.picker-sub {
+  font-size: 16px; color: var(--text-mid);
+  margin: 0 0 2.2rem; line-height: 1.6;
+}
+.picker-sub a { color: var(--text); text-decoration: underline; }
+
+.users-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+@media (max-width: 880px) { .users-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 640px) { .users-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 400px) { .users-grid { grid-template-columns: 1fr; } }
+.user-card {
+  background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px;
+  overflow: hidden; cursor: pointer; transition: all 0.18s; position: relative;
+}
+.user-card:hover { border-color: var(--border-strong); transform: translateY(-2px); box-shadow: 0 8px 28px var(--shadow); }
+.user-card:hover .card-hover { opacity: 1; }
+.card-mosaic { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; height: 118px; }
+.card-mosaic-cell { background: var(--bg-elev-3); overflow: hidden; }
+.card-mosaic-cell img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s; display: block; }
+.user-card:hover .card-mosaic-cell img { transform: scale(1.06); }
+.card-info { padding: 10px 12px 11px; display: flex; gap: 10px; align-items: center; }
+.card-avatar { width: 28px; height: 28px; border-radius: 50%; overflow: hidden; background: var(--bg-elev-3); flex-shrink: 0; }
+.card-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.card-name { font-weight: 500; font-size: 15px; margin-bottom: 3px; color: var(--text); }
+.card-meta { font-family: 'DM Sans', sans-serif; font-size: 12.5px; color: var(--text-dim); }
+.card-hover {
+  position: absolute; inset: 0;
+  background: var(--accent-tint);
+  border: 1.5px solid var(--accent-ring);
+  border-radius: 8px; opacity: 0; transition: opacity 0.18s;
+  display: flex; align-items: center; justify-content: center;
+}
+.card-hover span {
+  font-family: 'DM Sans', sans-serif; font-size: 12.5px; font-weight: 500; color: var(--accent-text);
+  background: var(--hover-overlay-bg); padding: 6px 16px; border-radius: 3px; letter-spacing: 0.07em;
+}
+
+.user-card.reveal {
+  animation: card-in 0.34s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.show-more-wrap {
+  display: flex; justify-content: flex-start; margin-top: 1.6rem;
+}
+.show-more-btn {
+  background: none; border: none; padding: 6px 4px;
+  font-family: 'DM Sans', sans-serif; font-size: 14px; letter-spacing: 0.06em;
+  color: var(--text-soft); cursor: pointer; font-weight: 500;
+  transition: color 0.15s;
+}
+.show-more-btn:hover { color: var(--accent-text); }
+.show-more-btn .arrow { display: inline-block; transition: transform 0.18s; margin-left: 4px; }
+.show-more-btn:hover .arrow { transform: translateX(3px); }
+.show-more-btn .count { color: var(--text-faint); margin-left: 0.4em; }
+.show-more-btn:hover .count { color: var(--accent-text); opacity: 0.6; }
+
+.picker-footer {
+  margin-top: 2.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);
+  font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text-faint); line-height: 1.7;
+}
+.picker-footer a { color: var(--text-soft); text-decoration: underline; }
+.picker-footer a:hover { color: var(--accent-text); }
+
+/* ── DEMO SCREEN ── */
+#demo {
+  flex-direction: row;
+  padding: 1.5rem;
+  gap: 0;
+  background: var(--bg);
+  justify-content: center;
+  align-items: stretch;
+}
+.demo-frame {
+  width: 100%;
+  max-width: 1240px;
+  display: flex; flex-direction: row;
+  border: 1px solid var(--border); border-radius: 10px;
+  overflow: hidden; background: var(--bg);
+  box-shadow: 0 8px 32px var(--shadow);
+  min-height: 0;
+}
+@media (max-width: 1000px) {
+  #demo { padding: 0.5rem; }
+  .demo-frame { border-radius: 6px; }
+}
+
+/* LEFT */
+.photo-panel {
+  width: 58%; display: flex; flex-direction: column;
+  border-right: 1px solid var(--border); overflow: hidden;
+  min-width: 0;
+}
+.panel-bar {
+  height: 46px; display: flex; align-items: center; gap: 10px;
+  padding: 0 1rem; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.back-btn {
+  background: none; border: none; color: var(--text-dim); cursor: pointer;
+  font-size: 20px; padding: 4px 8px; transition: color 0.15s; line-height: 1;
+}
+.back-btn:hover { color: var(--text); }
+.user-av { width: 30px; height: 30px; border-radius: 50%; overflow: hidden; background: var(--bg-elev-3); flex-shrink: 0; }
+.user-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.user-info-name { font-size: 15.5px; font-weight: 500; color: var(--text); }
+.user-info-meta { font-family: 'DM Sans', sans-serif; font-size: 12.5px; color: var(--text-dim); }
+.bar-spacer { margin-left: auto; }
+.flickr-link {
+  font-family: 'DM Sans', sans-serif; font-size: 12.5px; color: var(--text-dim);
+  text-decoration: none; padding: 5px 10px; border: 1px solid var(--border); border-radius: 4px;
+  transition: all 0.15s;
+}
+.flickr-link:hover { color: var(--accent-text); border-color: var(--accent-ring); }
+
+.view-toggle {
+  display: inline-flex; border: 1px solid var(--border); border-radius: 5px;
+  overflow: hidden; background: var(--bg);
+}
+.view-btn {
+  background: none; border: none; padding: 6px 12px;
+  font-family: 'DM Sans', sans-serif; font-size: 12.5px; font-weight: 500; letter-spacing: 0.04em;
+  color: var(--text-dim); cursor: pointer; transition: all 0.15s;
+}
+.view-btn + .view-btn { border-left: 1px solid var(--border); }
+.view-btn:hover { color: var(--text); }
+.view-btn.active { background: var(--accent-tint); color: var(--accent-text); }
+
+.grid-scroll {
+  flex: 1; overflow-y: auto; padding: 0 1.25rem 1.5rem;
+  position: relative;
+}
+.grid-scroll::-webkit-scrollbar { width: 6px; }
+.grid-scroll::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 3px; }
+.grid-scroll::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+/* Floating date pill that appears while scrolling */
+.scroll-date {
+  position: absolute;
+  top: 50%; right: 10px;
+  transform: translateY(-50%);
+  background: var(--bg-elev);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px;
+  padding: 6px 12px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px; font-weight: 500;
+  color: var(--text);
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s;
+  z-index: 5;
+  box-shadow: 0 4px 16px var(--shadow);
+  white-space: nowrap;
+}
+.scroll-date.show { opacity: 1; }
+
+.loading-state {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  color: var(--text-faint); font-family: 'DM Sans', sans-serif; font-size: 13px; letter-spacing: 0.04em;
+  padding: 2rem;
+}
+.loading-state.error { color: #c87060; }
+
+.event-group { margin-bottom: 2px; }
+.event-label {
+  font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; color: var(--text-mid);
+  letter-spacing: 0;
+  padding: 14px 1.25rem 6px;
+  margin: 0 -1.25rem;
+  position: sticky; top: 0; background: var(--bg); z-index: 2;
+}
+
+.photo-row {
+  display: grid;
+  grid-template-columns: repeat(var(--row-density, 4), 1fr);
+  gap: 2px;
+}
+.thumb {
+  aspect-ratio: 1; overflow: hidden; cursor: pointer; position: relative;
+  background: var(--bg-elev-2); transition: opacity 0.12s;
+}
+.thumb:hover { opacity: 0.82; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb img.broken { opacity: 0.1; }
+.thumb.lit {
+  outline: 3px solid var(--highlight); outline-offset: -3px;
+  z-index: 1; box-shadow: 0 0 24px var(--highlight-glow);
+  animation: lit-pulse 1.6s ease-out 2;
+}
+@keyframes lit-pulse {
+  0%   { box-shadow: 0 0 0   var(--highlight-glow); }
+  40%  { box-shadow: 0 0 36px var(--highlight-glow); }
+  100% { box-shadow: 0 0 24px var(--highlight-glow); }
+}
+.thumb-cap {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  background: var(--thumb-cap-bg);
+  padding: 16px 6px 5px;
+  font-size: 11px; color: var(--thumb-cap-text);
+  font-family: 'DM Sans', sans-serif;
+  opacity: 0; transition: opacity 0.12s;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.thumb:hover .thumb-cap { opacity: 1; }
+
+/* LIGHTBOX */
+#lb {
+  position: fixed; inset: 0; z-index: 500; background: var(--lb-bg);
+  display: none; align-items: center; justify-content: center;
+  padding: 2rem;
+}
+#lb.open { display: flex; }
+#lb-stage {
+  display: flex; flex-direction: column; align-items: center;
+  max-width: 90vw; max-height: 92vh; gap: 14px;
+}
+#lb-img { max-width: 88vw; max-height: 76vh; border-radius: 4px; object-fit: contain; }
+#lb-close {
+  position: absolute; top: 1.25rem; right: 1.5rem;
+  font-size: 26px; color: #cbc7bd; cursor: pointer; background: none; border: none; transition: color 0.15s;
+}
+#lb-close:hover { color: #fff; }
+.lb-meta {
+  max-width: 78vw; text-align: center;
+  font-family: 'DM Sans', sans-serif; font-size: 13px; color: #d8d3c8;
+  line-height: 1.65;
+}
+.lb-cap {
+  color: #f3eee3; font-size: 15px; line-height: 1.55;
+  max-width: 760px; margin: 0 auto 6px; text-align: left;
+  font-family: 'DM Sans', sans-serif;
+}
+.lb-sub {
+  color: #c0bbb0; font-size: 13px; line-height: 1.55;
+  max-width: 760px; margin: 0 auto 10px; text-align: left;
+  font-family: 'DM Sans', sans-serif;
+}
+.lb-meta a { color: #cbc7bd; text-decoration: underline; }
+.lb-meta a:hover { color: var(--accent); }
+.lb-sep { color: #6a675e; padding: 0 0.55em; }
+
+/* RIGHT */
+.chat-panel {
+  width: 42%; display: flex; flex-direction: column; overflow: hidden; background: var(--bg);
+}
+.chat-bar {
+  height: 46px; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 1rem; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  gap: 10px;
+}
+.chat-bar-title { font-family: 'DM Sans', sans-serif; font-size: 14px; font-weight: 500; color: var(--text-mid); letter-spacing: 0.02em; }
+.chat-bar-right { display: flex; align-items: center; gap: 10px; }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:0.5} 50%{opacity:1} }
+
+.chat-msgs {
+  flex: 1; overflow-y: auto; padding: 1rem;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.chat-msgs::-webkit-scrollbar { width: 4px; }
+.chat-msgs::-webkit-scrollbar-thumb { background: var(--bg-elev-3); border-radius: 2px; }
+
+/* WELCOME */
+.chat-welcome {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 2rem; text-align: center; gap: 1rem;
+}
+.welcome-icon { font-size: 2.4rem; opacity: 0.35; }
+.welcome-title { font-size: 17px; font-weight: 500; color: var(--text); }
+.welcome-hint { font-size: 14.5px; color: var(--text-mid); line-height: 1.6; max-width: 340px; }
+.suggestions { display: flex; flex-direction: column; gap: 8px; width: 100%; margin-top: 0.5rem; }
+.sug-btn {
+  background: var(--bg-elev); border: 1px solid var(--border); border-radius: 6px;
+  padding: 12px 16px; font-size: 15px; color: var(--text-soft); cursor: pointer;
+  text-align: left; font-style: italic; transition: all 0.15s;
+  font-family: 'DM Sans', sans-serif; line-height: 1.5;
+}
+.sug-btn:hover { border-color: var(--accent-ring); color: var(--accent-text); background: var(--accent-tint); }
+
+/* Follow-up questions after an answer */
+.followups {
+  align-self: stretch; margin-left: 38px; margin-top: 8px;
+  display: flex; flex-direction: column; gap: 7px;
+  animation: step-in 0.35s 0.05s both;
+}
+.followups-label {
+  font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+  color: var(--text-dim); letter-spacing: 0; font-style: italic;
+  margin-bottom: 4px;
+}
+.followup-btn {
+  background: none; border: none; border-radius: 0;
+  padding: 2px 0; font-size: 14.5px; color: var(--accent-text);
+  cursor: pointer; text-align: left; font-style: italic;
+  transition: color 0.15s, opacity 0.15s;
+  font-family: 'DM Sans', sans-serif; line-height: 1.55;
+  text-decoration: underline;
+  text-decoration-color: var(--accent-soft);
+  text-underline-offset: 3px;
+  display: block; width: auto;
+}
+.followup-btn:hover {
+  color: var(--accent);
+  text-decoration-color: var(--accent-ring);
+}
+.followup-btn::before {
+  content: '↳ '; color: var(--text-faint); margin-right: 2px;
+  font-style: normal; text-decoration: none; display: inline-block;
+}
+
+/* MESSAGES */
+.msg { display: flex; gap: 10px; align-items: flex-start; }
+.msg.user { flex-direction: row-reverse; }
+.m-av {
+  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'DM Sans', sans-serif; font-size: 10.5px; font-weight: 500;
+  margin-top: 1px;
+}
+.m-av.bot { background: var(--accent-tint); color: var(--accent-text); border: 1px solid var(--accent-soft); }
+.m-av.usr { background: var(--bg-elev-3); color: var(--text-soft); border: 1px solid var(--border); }
+.bub {
+  max-width: 82%; padding: 12px 16px; border-radius: 7px;
+  font-size: 16px; line-height: 1.6;
+}
+.bub.bot { background: var(--bg-elev); color: var(--text); border: 1px solid var(--border); }
+.bub.user { background: var(--accent-bub-bg); color: var(--accent-bub-text); border: 1px solid var(--accent-soft); }
+.bub-answer {
+  font-size: 17px; font-weight: 500; color: var(--text);
+  margin-bottom: 5px; line-height: 1.5;
+}
+.bub-expl {
+  font-size: 15px; color: var(--text-mid); line-height: 1.6;
+  margin-top: 4px;
+}
+.bub-note { font-size: 13px; color: var(--text-dim); margin-top: 8px; font-style: italic; }
+
+/* Trace summary line, lives at the TOP of the answer bubble */
+.bub-trace-sum {
+  font-family: 'DM Sans', sans-serif; font-size: 12px;
+  color: var(--text-dim); letter-spacing: 0.03em;
+  margin-bottom: 10px; padding-bottom: 7px;
+  border-bottom: 1px dashed var(--border);
+  display: flex; align-items: center; gap: 7px;
+}
+.bub-trace-sum .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); opacity: 0.7; }
+
+/* RELEVANT PHOTOS strip inside the bot bubble */
+.bub-rel {
+  margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border);
+}
+.bub-rel-label {
+  font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 500;
+  color: var(--text-dim); letter-spacing: 0;
+  margin-bottom: 7px;
+}
+.bub-rel-row {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(82px, 1fr));
+  gap: 5px;
+}
+.bub-rel-thumb {
+  aspect-ratio: 1; border-radius: 4px; overflow: hidden;
+  background: var(--bg-elev-3); cursor: pointer; position: relative;
+  border: 1px solid var(--border);
+  transition: all 0.15s;
+}
+.bub-rel-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.bub-rel-thumb:hover {
+  border-color: var(--accent-ring);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+.typing { display: flex; gap: 4px; align-items: center; padding: 10px 14px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 6px; width: fit-content; }
+.typing span { width: 5px; height: 5px; border-radius: 50%; background: var(--text-faint); animation: blink 1.2s infinite; }
+.typing span:nth-child(2) { animation-delay: 0.2s; }
+.typing span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes blink { 0%,80%,100%{opacity:0.2} 40%{opacity:1} }
+
+/* ── AGENT TRACE STEPS ── (flat, MLLM-style streaming thought, compact one-line head) */
+.trace-step {
+  background: none; border: none; border-radius: 0;
+  padding: 4px 0 4px 14px; margin-left: 38px;
+  font-size: 13px; line-height: 1.55;
+  border-left: 2px solid var(--border);
+  animation: step-in 0.35s cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  align-self: stretch; max-width: 100%;
+  color: var(--text-mid);
+}
+.trace-step + .trace-step { margin-top: -4px; }
+@keyframes step-in {
+  from { opacity: 0; transform: translateX(-4px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.trace-step-line {
+  font-family: 'DM Sans', sans-serif; font-size: 13px;
+  color: var(--text-dim);
+  word-break: break-word; line-height: 1.55;
+}
+.trace-step-line .tool { color: var(--accent-text); font-weight: 500; }
+.trace-step-line .paren { color: var(--text-faint); }
+.trace-step-line .arg   { color: var(--text-soft); font-style: italic; }
+.trace-step-line .score { color: var(--text-faint); margin-left: 8px; font-size: 11.5px; }
+.trace-step-toggle {
+  display: inline; margin-left: 10px;
+  font-family: 'DM Sans', sans-serif; font-size: 12px;
+  color: var(--text-dim); cursor: pointer; user-select: none;
+  letter-spacing: 0; font-style: italic;
+  background: none; border: none; padding: 0;
+  vertical-align: baseline;
+}
+.trace-step-toggle:hover { color: var(--accent-text); }
+.trace-step-snippet {
+  color: var(--text-mid); font-size: 13px; line-height: 1.6;
+  white-space: pre-wrap; word-break: break-word;
+  font-family: 'DM Sans', sans-serif;
+  max-height: 0; overflow: hidden;
+  transition: max-height 0.25s ease;
+  margin-top: 0;
+}
+.trace-step-snippet.expanded {
+  max-height: 9999px;
+  margin-top: 5px;
+  padding-left: 8px;
+  border-left: 1px dotted var(--border);
+}
+.trace-divider {
+  font-family: 'DM Sans', sans-serif; font-size: 12px; color: var(--text-faint);
+  letter-spacing: 0;
+  align-self: flex-start; padding-left: 32px; margin: 2px 0 -2px;
+  animation: step-in 0.3s both;
+}
+
+/* INPUT */
+.chat-input-wrap { padding: 12px; border-top: 1px solid var(--border); flex-shrink: 0; }
+.input-row {
+  display: flex; gap: 8px; align-items: flex-end;
+  background: var(--bg-elev); border: 1px solid var(--border); border-radius: 7px; padding: 9px 10px;
+  transition: border-color 0.15s;
+}
+.input-row:focus-within { border-color: var(--accent-ring); }
+#msg-input {
+  flex: 1; background: none; border: none; outline: none;
+  color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 15px;
+  resize: none; min-height: 22px; max-height: 120px; overflow-y: auto; line-height: 1.5;
+}
+#msg-input::placeholder { color: var(--text-ghost); }
+#send-btn {
+  width: 32px; height: 32px; border-radius: 6px; background: var(--accent);
+  border: none; cursor: pointer; color: #0f0f0f; font-size: 16px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  transition: opacity 0.15s;
+}
+:root[data-theme="light"] #send-btn { color: #ffffff; }
+#send-btn:hover { opacity: 0.85; }
+#send-btn:disabled { opacity: 0.25; cursor: default; }
+.input-hint { font-family: 'DM Sans', sans-serif; font-size: 12.5px; color: var(--text-ghost); text-align: center; margin-top: 6px; }
+</style>
+</head>
+<body>
+
+<!-- PICKER -->
+<div class="screen active" id="picker">
+  <button id="picker-toggle" class="theme-toggle" title="Toggle theme" onclick="toggleTheme()">
+    <span class="icon-dark">☀</span><span class="icon-light">☾</span>
+  </button>
+  <div class="picker-inner">
+    <div class="picker-eyebrow">camroll · demo</div>
+    <div class="picker-title">Choose a <strong>camera roll</strong></div>
+    <div class="picker-sub">Pick a user — browse their photos on the left, ask questions on the right. All photos come from <a href="https://multimediacommons.wordpress.com/yfcc100m-core-dataset/">YFCC100M</a> (Creative Commons, hosted on Flickr).</div>
+    <div class="users-grid" id="users-grid"></div>
+    <div class="show-more-wrap" id="show-more-wrap" style="display:none;">
+      <button class="show-more-btn" id="show-more-btn" onclick="showAllUsers()">
+        show all users<span class="count" id="show-more-count"></span><span class="arrow">→</span>
+      </button>
+    </div>
+    <div class="picker-footer" id="picker-footer">
+      Loading…
+    </div>
+  </div>
+</div>
+
+<!-- DEMO -->
+<div class="screen" id="demo">
+ <div class="demo-frame">
+  <div class="photo-panel">
+    <div class="panel-bar">
+      <button class="back-btn" onclick="goBack()" title="Back">←</button>
+      <div class="user-av"><img id="u-avatar" src="" alt=""></div>
+      <div>
+        <div class="user-info-name" id="u-name"></div>
+        <div class="user-info-meta" id="u-meta"></div>
+      </div>
+      <div class="bar-spacer"></div>
+      <div class="view-toggle" id="density-toggle">
+        <button class="view-btn" data-density="3"  onclick="setDensity(3)">3</button>
+        <button class="view-btn active" data-density="4"  onclick="setDensity(4)">4</button>
+        <button class="view-btn" data-density="5"  onclick="setDensity(5)">5</button>
+        <button class="view-btn" data-density="7"  onclick="setDensity(7)">7</button>
+        <button class="view-btn" data-density="10" onclick="setDensity(10)">10</button>
+      </div>
+      <a id="u-flickr" class="flickr-link" target="_blank" rel="noopener">flickr ↗</a>
+    </div>
+    <div class="grid-scroll" id="grid-scroll">
+      <div class="loading-state" id="grid-loading">loading photos…</div>
+      <div class="scroll-date" id="scroll-date"></div>
+    </div>
+  </div>
+
+  <div class="chat-panel">
+    <div class="chat-bar">
+      <span class="chat-bar-title">📷 camroll-agent</span>
+      <div class="chat-bar-right">
+        <div class="status-dot"></div>
+        <button class="theme-toggle" title="Toggle theme" onclick="toggleTheme()">
+          <span class="icon-dark">☀</span><span class="icon-light">☾</span>
+        </button>
+      </div>
+    </div>
+    <div class="chat-msgs" id="chat-msgs" style="display:none"></div>
+    <div class="chat-welcome" id="chat-welcome">
+      <div class="welcome-icon">📷</div>
+      <div class="welcome-title">Ask about this camera roll</div>
+      <div class="welcome-hint">Click a suggested question to see a real answer with the relevant photos highlighted.</div>
+      <div class="suggestions" id="suggestions"></div>
+    </div>
+    <div class="chat-input-wrap">
+      <div class="input-row">
+        <textarea id="msg-input" placeholder="Ask anything about this camera roll…" rows="1"></textarea>
+        <button id="send-btn" disabled>↑</button>
+      </div>
+      <div class="input-hint">demo build — only the suggested questions return real answers</div>
+    </div>
+  </div>
+ </div>
+</div>
+
+<!-- LIGHTBOX -->
+<div id="lb">
+  <button id="lb-close" onclick="closeLB()">×</button>
+  <div id="lb-stage">
+    <img id="lb-img" src="" alt="">
+    <div class="lb-meta">
+      <div class="lb-cap" id="lb-cap"></div>
+      <div class="lb-sub" id="lb-sub"></div>
+      <div id="lb-attr"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────
+// THEME (initial value set in <head> before paint)
+// ─────────────────────────────────────────────────────────────────
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem('camroll-theme', next); } catch (e) {}
+}
+
+// ─────────────────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────────────────
+let MANIFEST = null;      // {users: [{id,name,years,photoCount,avatar,preview,dataFile}, ...]}
+let currentUser = null;   // full user data (loaded lazily)
+const userCache = {};     // id -> full data
+
+const MONTHS = ['January','February','March','April','May','June',
+                'July','August','September','October','November','December'];
+
+// ─────────────────────────────────────────────────────────────────
+// Boot
+// ─────────────────────────────────────────────────────────────────
+async function boot() {
+  try {
+    const res = await fetch('yfcc_users.json', { cache: 'no-cache' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    MANIFEST = await res.json();
+  } catch (e) {
+    document.getElementById('users-grid').innerHTML =
+      `<div style="color:#c87060;font-family:'DM Sans',sans-serif;font-size:14px;padding:1rem;">
+         Could not load users.json — ${e.message}
+       </div>`;
+    return;
+  }
+  renderPicker();
+  renderFooter();
+}
+
+function renderFooter() {
+  const total = MANIFEST.users.reduce((a, u) => a + (u.photoCount || 0), 0);
+  document.getElementById('picker-footer').innerHTML =
+    `${MANIFEST.users.length} users · ${total.toLocaleString()} photos · ` +
+    `images served directly from Flickr · ` +
+    `<a href="https://github.com/thaoshibe/camroll" target="_blank" rel="noopener">source on github</a>`;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// PICKER
+// ─────────────────────────────────────────────────────────────────
+const INITIAL_USERS = 4;
+
+function makeUserCard(u, reveal) {
+  const card = document.createElement('div');
+  card.className = 'user-card' + (reveal ? ' reveal' : '');
+  card.innerHTML = `
+    <div class="card-mosaic">
+      ${u.preview.slice(0,4).map(src =>
+        `<div class="card-mosaic-cell">
+           <img src="${src}" loading="lazy" alt=""
+                onerror="this.style.opacity=0.15">
+         </div>`
+      ).join('')}
+    </div>
+    <div class="card-info">
+      <div class="card-avatar"><img src="${u.avatar}" loading="lazy" alt=""></div>
+      <div>
+        <div class="card-name">${u.name}</div>
+        <div class="card-meta">${u.years} · ${u.photoCount.toLocaleString()} photos</div>
+      </div>
+    </div>
+    <div class="card-hover"><span>Explore →</span></div>`;
+  card.onclick = () => openUser(u);
+  return card;
+}
+
+function renderPicker() {
+  const grid = document.getElementById('users-grid');
+  grid.innerHTML = '';
+  const visible = MANIFEST.users.slice(0, INITIAL_USERS);
+  visible.forEach(u => grid.appendChild(makeUserCard(u, false)));
+
+  const moreWrap = document.getElementById('show-more-wrap');
+  const remaining = MANIFEST.users.length - INITIAL_USERS;
+  if (remaining > 0) {
+    document.getElementById('show-more-count').textContent = ` (+${remaining})`;
+    moreWrap.style.display = 'flex';
+  } else {
+    moreWrap.style.display = 'none';
+  }
+}
+
+function showAllUsers() {
+  const grid = document.getElementById('users-grid');
+  const rest = MANIFEST.users.slice(INITIAL_USERS);
+  // Stagger the entrance animations by a few ms each for a nicer reveal.
+  rest.forEach((u, i) => {
+    const card = makeUserCard(u, true);
+    card.style.animationDelay = `${Math.min(i * 35, 350)}ms`;
+    grid.appendChild(card);
+  });
+  document.getElementById('show-more-wrap').style.display = 'none';
+}
+
+// ─────────────────────────────────────────────────────────────────
+// OPEN USER
+// ─────────────────────────────────────────────────────────────────
+async function openUser(stub) {
+  document.getElementById('picker').classList.remove('active');
+  document.getElementById('demo').classList.add('active');
+
+  // Header (we know name/avatar from manifest, photo data loads after)
+  document.getElementById('u-name').textContent = stub.name;
+  document.getElementById('u-meta').textContent = stub.years + ' · ' + stub.photoCount.toLocaleString() + ' photos';
+  document.getElementById('u-avatar').src = stub.avatar;
+
+  document.getElementById('grid-scroll').innerHTML =
+    '<div class="loading-state">loading photos…</div>';
+  document.getElementById('chat-welcome').style.display = 'flex';
+  document.getElementById('suggestions').innerHTML = '';
+  document.getElementById('chat-msgs').innerHTML = '';
+  document.getElementById('chat-msgs').style.display = 'none';
+
+  // Load full user data (lazy)
+  let u = userCache[stub.id];
+  if (!u) {
+    try {
+      const res = await fetch(stub.dataFile, { cache: 'no-cache' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      u = await res.json();
+      userCache[stub.id] = u;
+    } catch (e) {
+      document.getElementById('grid-scroll').innerHTML =
+        `<div class="loading-state error">Failed to load: ${e.message}</div>`;
+      return;
+    }
+  }
+
+  currentUser = u;
+  document.getElementById('u-flickr').href = u.flickrProfile || ('https://www.flickr.com/photos/' + (u.nsid || ''));
+  // Always render timeline (camera roll). Initialize density on this user's panel.
+  setDensity(currentDensity);
+  renderGrid(u);
+  renderSuggestions(u);
+}
+
+function goBack() {
+  document.getElementById('demo').classList.remove('active');
+  document.getElementById('picker').classList.add('active');
+  currentUser = null;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// PHOTO GRID — timeline (newest first, grouped by month)
+// ─────────────────────────────────────────────────────────────────
+const DEFAULT_DENSITY = 4;
+let currentDensity = DEFAULT_DENSITY;
+
+function monthKey(isoDate) {
+  if (!isoDate) return { key: '0000-00', label: 'Date unknown' };
+  const d = new Date(isoDate);
+  if (isNaN(d)) return { key: '0000-00', label: 'Date unknown' };
+  const y = d.getFullYear();
+  const m = d.getMonth();
+  return {
+    key: `${y}-${String(m).padStart(2,'0')}`,
+    label: `${MONTHS[m]} ${y}`,
+  };
+}
+
+function makeThumb(p) {
+  const t = document.createElement('div');
+  t.className = 'thumb';
+  t.setAttribute('data-pid', p.id);
+  t.id = 'th-' + p.id;
+  const cap = p.captionKii || p.caption || '';
+  t.innerHTML = `
+    <img src="${p.thumb}" loading="lazy" alt=""
+         onerror="this.classList.add('broken'); this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 1 1%22><rect width=%221%22 height=%221%22 fill=%22%23222%22/></svg>'">
+    ${cap ? `<div class="thumb-cap">${escapeHtml(cap.slice(0, 90))}</div>` : ''}
+  `;
+  t.onclick = () => openLB(p);
+  return t;
+}
+
+function setDensity(n) {
+  currentDensity = n;
+  document.querySelector('.photo-panel').style.setProperty('--row-density', n);
+  document.querySelectorAll('#density-toggle .view-btn').forEach(b => {
+    b.classList.toggle('active', Number(b.dataset.density) === n);
+  });
+}
+
+function renderGrid(u) {
+  const wrap = document.getElementById('grid-scroll');
+  // Preserve the floating date element across re-renders
+  const dateEl = document.getElementById('scroll-date');
+  wrap.innerHTML = '';
+  if (dateEl) wrap.appendChild(dateEl);
+
+  if (!u.photos || !u.photos.length) {
+    wrap.innerHTML = '<div class="loading-state">no photos</div>';
+    return;
+  }
+  // Photos are already newest-first from the build script.
+  let currentKey = null;
+  let currentRow = null;
+  u.photos.forEach(p => {
+    const mk = monthKey(p.date);
+    if (mk.key !== currentKey) {
+      currentKey = mk.key;
+      const group = document.createElement('div');
+      group.className = 'event-group';
+      group.innerHTML = `<div class="event-label">${mk.label}</div>`;
+      currentRow = document.createElement('div');
+      currentRow.className = 'photo-row';
+      group.appendChild(currentRow);
+      wrap.appendChild(group);
+    }
+    currentRow.appendChild(makeThumb(p));
+  });
+
+  setupScrollDate();
+}
+
+// ── Floating date pill while scrolling ─────────────────────────────
+let scrollDateHideTimer = null;
+function setupScrollDate() {
+  const scroller = document.getElementById('grid-scroll');
+  const pill = document.getElementById('scroll-date');
+  if (!scroller || !pill) return;
+
+  function update() {
+    // Find the topmost visible event-label and read its text.
+    const labels = scroller.querySelectorAll('.event-label');
+    const topOffset = scroller.scrollTop;
+    let active = null;
+    labels.forEach(lbl => {
+      // lbl.offsetTop is relative to its offsetParent (the scroller's content).
+      if (lbl.offsetTop <= topOffset + 12) active = lbl;
+    });
+    if (active) {
+      pill.textContent = active.textContent.trim();
+      pill.classList.add('show');
+      clearTimeout(scrollDateHideTimer);
+      scrollDateHideTimer = setTimeout(() => pill.classList.remove('show'), 900);
+    }
+  }
+  // Replace existing listener (renderGrid runs each time we open a user)
+  scroller.onscroll = update;
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+// ─────────────────────────────────────────────────────────────────
+// LIGHTBOX
+// ─────────────────────────────────────────────────────────────────
+function openLB(p) {
+  document.getElementById('lb-img').src = p.src;
+  // Primary caption: kii first-person description (rich). Fallback: Flickr title.
+  const primary = (p.captionKii || p.caption || '').trim();
+  document.getElementById('lb-cap').textContent = primary || '(untitled)';
+
+  // Subtitle: Flickr title (only if we have BOTH and they differ)
+  const subEl = document.getElementById('lb-sub');
+  if (p.captionKii && p.caption && p.caption !== p.captionKii) {
+    subEl.textContent = p.caption;
+    subEl.style.display = 'block';
+  } else {
+    subEl.style.display = 'none';
+  }
+
+  const parts = [];
+  if (p.date) parts.push(p.date.slice(0,10));
+  if (p.page) parts.push(`<a href="${p.page}" target="_blank" rel="noopener">view on flickr</a>`);
+  if (p.license) {
+    const lic = p.licenseUrl
+      ? `<a href="${p.licenseUrl}" target="_blank" rel="noopener">${escapeHtml(p.license)}</a>`
+      : escapeHtml(p.license);
+    parts.push(lic);
+  }
+  document.getElementById('lb-attr').innerHTML = parts.join('<span class="lb-sep">·</span>');
+  document.getElementById('lb').classList.add('open');
+}
+function closeLB() { document.getElementById('lb').classList.remove('open'); }
+document.getElementById('lb').addEventListener('click', e => {
+  if (e.target === document.getElementById('lb')) closeLB();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeLB();
+});
+
+// ─────────────────────────────────────────────────────────────────
+// CHAT
+// ─────────────────────────────────────────────────────────────────
+function renderSuggestions(u) {
+  const sug = document.getElementById('suggestions');
+  sug.innerHTML = '';
+  (u.suggestedQs || []).forEach(q => {
+    const b = document.createElement('button');
+    b.className = 'sug-btn';
+    b.textContent = '"' + q.question + '"';
+    b.onclick = () => askCanned(q);
+    sug.appendChild(b);
+  });
+}
+
+function addMsg(text, who, opts = {}) {
+  document.getElementById('chat-welcome').style.display = 'none';
+  const msgs = document.getElementById('chat-msgs');
+  msgs.style.display = 'flex';
+  const wrap = document.createElement('div');
+  wrap.className = 'msg ' + (who === 'user' ? 'user' : '');
+  const av = document.createElement('div');
+  av.className = 'm-av ' + (who === 'bot' ? 'bot' : 'usr');
+  av.textContent = who === 'bot' ? 'AI' : 'U';
+  const bub = document.createElement('div');
+  bub.className = 'bub ' + (who === 'bot' ? 'bot' : 'user');
+  bub.textContent = text;
+  if (opts.note) {
+    const n = document.createElement('div');
+    n.className = 'bub-note';
+    n.textContent = opts.note;
+    bub.appendChild(n);
+  }
+  wrap.appendChild(av);
+  wrap.appendChild(bub);
+  msgs.appendChild(wrap);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function addAgentAnswer(q) {
+  document.getElementById('chat-welcome').style.display = 'none';
+  const msgs = document.getElementById('chat-msgs');
+  msgs.style.display = 'flex';
+  const wrap = document.createElement('div');
+  wrap.className = 'msg';
+  const av = document.createElement('div');
+  av.className = 'm-av bot';
+  av.textContent = 'AI';
+  const bub = document.createElement('div');
+  bub.className = 'bub bot';
+
+  // 1. Trace summary line ON TOP (above the answer)
+  const steps = (q.trace || []).length;
+  const sumParts = [];
+  if (q.latencyS) sumParts.push(`agent thought for ${q.latencyS}s`);
+  if (steps) sumParts.push(`${steps} tool calls`);
+  if (q.highlight && q.highlight.length) sumParts.push('highlighted on the left ↖');
+  if (sumParts.length) {
+    const s = document.createElement('div');
+    s.className = 'bub-trace-sum';
+    s.innerHTML = `<span class="dot"></span><span>${escapeHtml(sumParts.join(' · '))}</span>`;
+    bub.appendChild(s);
+  }
+
+  // 2. Headline answer
+  const ans = document.createElement('div');
+  ans.className = 'bub-answer';
+  ans.textContent = q.answer || '(no answer)';
+  bub.appendChild(ans);
+
+  // 3. Judge's explanation (if any)
+  if (q.explanation) {
+    const ex = document.createElement('div');
+    ex.className = 'bub-expl';
+    ex.textContent = q.explanation;
+    bub.appendChild(ex);
+  }
+
+  // 4. Relevant photos strip
+  if (q.highlight && q.highlight.length && currentUser) {
+    const byId = {};
+    currentUser.photos.forEach(p => { byId[p.id] = p; });
+    const rel = document.createElement('div');
+    rel.className = 'bub-rel';
+    const lbl = document.createElement('div');
+    lbl.className = 'bub-rel-label';
+    lbl.textContent = `relevant photos · ${q.highlight.length}`;
+    rel.appendChild(lbl);
+    const row = document.createElement('div');
+    row.className = 'bub-rel-row';
+    q.highlight.forEach(pid => {
+      const p = byId[pid];
+      if (!p) return;
+      const t = document.createElement('div');
+      t.className = 'bub-rel-thumb';
+      t.title = 'Open photo · also lights it up on the left';
+      t.innerHTML = `<img src="${p.thumb}" loading="lazy" alt=""
+                          onerror="this.style.opacity=0.15">`;
+      t.onclick = () => {
+        highlightAndScroll([pid]);
+        openLB(p);
+      };
+      row.appendChild(t);
+    });
+    rel.appendChild(row);
+    bub.appendChild(rel);
+  }
+
+  wrap.appendChild(av);
+  wrap.appendChild(bub);
+  msgs.appendChild(wrap);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function showTyping() {
+  document.getElementById('chat-welcome').style.display = 'none';
+  const msgs = document.getElementById('chat-msgs');
+  msgs.style.display = 'flex';
+  const wrap = document.createElement('div');
+  wrap.className = 'msg'; wrap.id = 'typing-wrap';
+  const av = document.createElement('div'); av.className = 'm-av bot'; av.textContent = 'AI';
+  const t = document.createElement('div'); t.className = 'typing';
+  t.innerHTML = '<span></span><span></span><span></span>';
+  wrap.appendChild(av); wrap.appendChild(t);
+  msgs.appendChild(wrap);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+function removeTyping() {
+  const e = document.getElementById('typing-wrap');
+  if (e) e.remove();
+}
+
+function clearHighlights() {
+  document.querySelectorAll('.thumb.lit').forEach(t => t.classList.remove('lit'));
+}
+
+function highlightAndScroll(ids) {
+  clearHighlights();
+  if (!ids || !ids.length) return;
+  let first = null;
+  ids.forEach(pid => {
+    document.querySelectorAll('.thumb[data-pid="' + pid + '"]').forEach(el => {
+      // Force a reflow so the pulse animation re-triggers even if the
+      // same photo was just highlighted a moment ago.
+      el.classList.remove('lit');
+      void el.offsetWidth;  // reflow
+      el.classList.add('lit');
+      if (!first) first = el;
+    });
+  });
+  if (first) {
+    first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+function appendTraceStep(step, idx) {
+  document.getElementById('chat-welcome').style.display = 'none';
+  const msgs = document.getElementById('chat-msgs');
+  msgs.style.display = 'flex';
+
+  const el = document.createElement('div');
+  el.className = 'trace-step';
+
+  const tool = step.tool || 'tool';
+  const arg  = step.query || '';
+  const scoreVal = (step.score !== null && step.score !== undefined)
+    ? Number(step.score).toFixed(2) : '';
+
+  // Compact one-liner: tool("arg") · score · show full ▾
+  const line = document.createElement('div');
+  line.className = 'trace-step-line';
+  line.innerHTML =
+    `<span class="tool">${escapeHtml(tool)}</span>` +
+    `<span class="paren">(</span>` +
+    (arg ? `<span class="arg">"${escapeHtml(arg)}"</span>` : '') +
+    `<span class="paren">)</span>` +
+    (scoreVal ? `<span class="score">score ${scoreVal}</span>` : '');
+  el.appendChild(line);
+
+  if (step.snippet) {
+    const snip = document.createElement('div');
+    snip.className = 'trace-step-snippet';
+    snip.textContent = step.snippet;
+    el.appendChild(snip);
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'trace-step-toggle';
+    btn.textContent = 'show full ▾';
+    btn.onclick = () => {
+      const expanded = snip.classList.toggle('expanded');
+      btn.textContent = expanded ? 'hide ▴' : 'show full ▾';
+    };
+    // Append the toggle inline at the END of the head line.
+    line.appendChild(btn);
+  }
+
+  msgs.appendChild(el);
+  msgs.scrollTop = msgs.scrollHeight;
+
+  if (step.highlight && step.highlight.length) {
+    highlightAndScroll(step.highlight);
+  }
+}
+
+async function askCanned(q) {
+  addMsg(q.question, 'user');
+  showTyping();
+
+  await sleep(380);
+  removeTyping();
+
+  const steps = q.trace || [];
+  for (let i = 0; i < steps.length; i++) {
+    appendTraceStep(steps[i], i);
+    await sleep(750);
+  }
+
+  showTyping();
+  await sleep(420);
+  removeTyping();
+  addAgentAnswer(q);
+  highlightAndScroll(q.highlight);
+
+  // Offer the OTHER suggested questions as follow-up chips
+  await sleep(300);
+  appendFollowUps(q);
+}
+
+function appendFollowUps(currentQ) {
+  if (!currentUser) return;
+  const others = (currentUser.suggestedQs || []).filter(o => o.question !== currentQ.question);
+  if (!others.length) return;
+  const msgs = document.getElementById('chat-msgs');
+  const wrap = document.createElement('div');
+  wrap.className = 'followups';
+  const lbl = document.createElement('div');
+  lbl.className = 'followups-label';
+  lbl.textContent = 'try another question';
+  wrap.appendChild(lbl);
+  others.forEach(o => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'followup-btn';
+    b.textContent = '"' + o.question + '"';
+    b.onclick = () => {
+      // Remove this followup strip so it doesn't pile up, then run the next Q
+      wrap.remove();
+      askCanned(o);
+    };
+    wrap.appendChild(b);
+  });
+  msgs.appendChild(wrap);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function askFreeform(text) {
+  addMsg(text, 'user');
+  document.getElementById('msg-input').value = '';
+  document.getElementById('send-btn').disabled = true;
+  showTyping();
+  setTimeout(() => {
+    removeTyping();
+    addMsg(
+      "This is a static demo, so I can only answer the suggested questions for now. " +
+      "Try clicking one above — a live agent version is in the works!",
+      'bot'
+    );
+    document.getElementById('send-btn').disabled = false;
+  }, 650);
+}
+
+const inp = document.getElementById('msg-input');
+const btn = document.getElementById('send-btn');
+
+inp.addEventListener('input', () => {
+  btn.disabled = !inp.value.trim();
+  inp.style.height = 'auto';
+  inp.style.height = Math.min(inp.scrollHeight, 110) + 'px';
+});
+inp.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    const v = inp.value.trim();
+    if (v) askFreeform(v);
+  }
+});
+btn.addEventListener('click', () => {
+  const v = inp.value.trim();
+  if (v) askFreeform(v);
+});
+
+boot();
+</script>
+</body>
+</html>
