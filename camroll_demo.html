@@ -659,7 +659,7 @@ body {
         <textarea id="msg-input" placeholder="Ask anything about this camera roll…" rows="1"></textarea>
         <button id="send-btn" disabled>↑</button>
       </div>
-      <div class="input-hint">demo build — only the suggested questions return real answers</div>
+      <div class="input-hint">demo build — only the suggested questions return real answers · questions are logged anonymously to improve the demo</div>
     </div>
   </div>
  </div>
@@ -1233,7 +1233,34 @@ function appendFollowUps(currentQ) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// ─────────────────────────────────────────────────────────────────
+// Question logging (Google Apps Script → Google Sheet)
+// Paste your deployment URL between the quotes below.
+// Setting LOG_ENDPOINT to '' disables logging (safe default).
+// ─────────────────────────────────────────────────────────────────
+const LOG_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwiQLx3kQjNeG5J-7fu5Cpf1za5WZC7fvPKoNmVDFPEOL_kQr3wX7R0Chnz4yXrBTf7/exec';
+const SESSION_ID = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(36).slice(2));
+
+function logQuestion(text) {
+  if (!LOG_ENDPOINT || LOG_ENDPOINT.startsWith('<<')) return;
+  try {
+    fetch(LOG_ENDPOINT, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        question: String(text || '').slice(0, 2000),
+        user: (currentUser && (currentUser.name || currentUser.nsid)) || null,
+        session_id: SESSION_ID,
+        page_url: location.href,
+        ua: navigator.userAgent,
+      }),
+    }).catch(() => {});
+  } catch (_) { /* never break the UI for logging */ }
+}
+
 function askFreeform(text) {
+  logQuestion(text);
   addMsg(text, 'user');
   document.getElementById('msg-input').value = '';
   document.getElementById('send-btn').disabled = true;
