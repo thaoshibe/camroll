@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>camroll · question collection</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script>
+  // Set theme before paint to avoid flash-of-wrong-theme.
+  // Shares the same localStorage key as camroll_demo.html so theme
+  // preference carries across pages of the same family.
+  (function() {
+    var t = null;
+    try { t = localStorage.getItem('camroll-theme'); } catch (e) {}
+    if (!t) t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', t);
+  })();
+</script>
+<style>
+/* ── THEME TOKENS — shared with camroll_demo.html ──────────── */
+:root,
+:root[data-theme="dark"] {
+  --bg:            #0f0f0f;
+  --bg-elev:       #161616;
+  --bg-elev-2:     #1a1a1a;
+  --bg-elev-3:     #1c1c1c;
+  --border:        #2a2a2a;
+  --border-strong: #5a5a5a;
+  --text:          #ffffff;
+  --text-mid:      #d8d4cc;
+  --text-soft:     #b8b3a8;
+  --text-dim:      #8e8a80;
+  --text-faint:    #6f6a60;
+  --text-ghost:    #555044;
+  --accent:        #c8f060;
+  --accent-text:   #c8f060;
+  --accent-bub-bg: #191e10;
+  --accent-bub-text: #d0e498;
+  --accent-soft:   rgba(200,240,96,0.13);
+  --accent-glow:   rgba(200,240,96,0.4);
+  --accent-tint:   rgba(200,240,96,0.05);
+  --accent-ring:   rgba(200,240,96,0.3);
+  --shadow:        rgba(0,0,0,0.45);
+  --scrollbar:     #252525;
+  --header-bg:     rgba(15,15,15,0.85);
+  --chip-text:     #0f0f0f;
+}
+:root[data-theme="light"] {
+  --bg:            #fafafa;
+  --bg-elev:       #ffffff;
+  --bg-elev-2:     #f2f2f2;
+  --bg-elev-3:     #ededed;
+  --border:        #e2e2e2;
+  --border-strong: #888888;
+  --text:          #000000;
+  --text-mid:      #111111;
+  --text-soft:     #222222;
+  --text-dim:      #444444;
+  --text-faint:    #6a6a6a;
+  --text-ghost:    #8a8a8a;
+  --accent:        #2f6f0f;
+  --accent-text:   #2a6310;
+  --accent-bub-bg: #eef5dc;
+  --accent-bub-text: #1c3a08;
+  --accent-soft:   rgba(47,111,15,0.18);
+  --accent-glow:   rgba(47,111,15,0.35);
+  --accent-tint:   rgba(47,111,15,0.07);
+  --accent-ring:   rgba(47,111,15,0.45);
+  --shadow:        rgba(0,0,0,0.10);
+  --scrollbar:     #cccccc;
+  --header-bg:     rgba(250,250,250,0.85);
+  --chip-text:     #ffffff;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;font-family:'DM Sans',sans-serif}
+body{
+  background:var(--bg); color:var(--text); font-size:16px;
+  transition:background 0.18s, color 0.18s;
+}
+
+/* ── CHAT THREAD — styled like ChatGPT / Claude ─────────────── */
+.thread{
+  position:fixed;
+  top:54px;          /* flush directly under the 54px header bar */
+  left:0; right:0;
+  bottom:170px;      /* leave room for the chatbar at the bottom */
+  z-index:5;
+  overflow-y:auto;
+  scroll-behavior:smooth;
+}
+.thread::-webkit-scrollbar{ width:8px; }
+.thread::-webkit-scrollbar-thumb{ background:var(--scrollbar); border-radius:4px; }
+.thread::-webkit-scrollbar-thumb:hover{ background:var(--border-strong); }
+
+.thread-inner{
+  max-width:740px;
+  margin:0 auto;
+  padding:18px 20px 24px;
+  display:flex; flex-direction:column;
+  gap:10px;
+}
+
+/* A grouping ("turn") = one user message + one AI reply. Subtle separator
+   between turns so the eye can parse where one conversation ends and the
+   next begins. */
+.turn{
+  display:flex; flex-direction:column;
+  gap:14px;
+  padding:14px 0 18px;
+  border-bottom:1px solid var(--border);
+  animation:turn-in .35s ease-out both;
+}
+.turn:last-child{ border-bottom:none; }
+@keyframes turn-in{
+  from { opacity:0; transform:translateY(6px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+
+/* A single chat message row: avatar on the left, content on the right */
+.msg{
+  display:flex; gap:12px;
+  align-items:flex-start;
+}
+.msg .avatar{
+  flex-shrink:0;
+  width:30px; height:30px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:12px; font-weight:600; color:#fff;
+  letter-spacing:0.02em;
+  user-select:none;
+}
+.msg .body{
+  flex:1; min-width:0;
+  display:flex; flex-direction:column;
+  gap:6px;
+  padding-top:2px;
+}
+.msg .who{
+  font-size:13px; font-weight:600;
+  color:var(--text);
+  line-height:1;
+  letter-spacing:0.005em;
+}
+.msg .who .you-tag{
+  font-size:10.5px; font-weight:600;
+  color:var(--accent-text);
+  margin-left:6px; letter-spacing:0.06em; text-transform:uppercase;
+}
+.msg .text{
+  font-size:14.5px; line-height:1.55;
+  color:var(--text-mid);
+  white-space:pre-wrap;
+  word-wrap:break-word;
+}
+
+/* AI assistant row — slightly muted text and a marker dot for the model name */
+.msg.ai .avatar{
+  background:var(--accent-tint);
+  color:var(--accent-text);
+  border:1px solid var(--accent-soft);
+}
+.msg.ai .who{ color:var(--text-soft); }
+.msg.ai .text{ color:var(--text-mid); }
+
+/* Image attachments on a user message — small rounded thumbnails like
+   ChatGPT/Claude render uploaded images. NOT a hero photo. */
+.attachments{
+  display:flex; flex-wrap:wrap;
+  gap:6px;
+  margin-top:2px;
+}
+.attachment{
+  width:128px; height:128px;
+  border-radius:10px;
+  overflow:hidden;
+  background:var(--bg-elev-3);
+  border:1px solid var(--border);
+  position:relative;
+  cursor:zoom-in;
+  transition:transform .15s, border-color .15s;
+}
+.attachment:hover{
+  border-color:var(--accent-ring);
+  transform:translateY(-1px);
+}
+.attachment img{
+  display:block; width:100%; height:100%; object-fit:cover;
+}
+/* When only one attachment → make it slightly larger / landscape */
+.attachments.n-1 .attachment{ width:240px; height:160px; }
+@media (max-width: 560px){
+  .attachment{ width:96px; height:96px; }
+  .attachments.n-1 .attachment{ width:200px; height:140px; }
+}
+
+/* "retrieved from your gallery" caption — small dimmed line above the
+   AI's image grid, gives the photos context (this is camroll's answer,
+   not the user's upload) */
+.retrieved-tag{
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:11.5px; letter-spacing:0.02em;
+  color:var(--text-dim);
+  margin-top:6px;
+  padding:3px 9px;
+  background:var(--accent-tint);
+  border:1px solid var(--accent-soft);
+  border-radius:14px;
+  width:fit-content;
+}
+.retrieved-tag .dot{
+  color:var(--accent); font-size:8px; line-height:1;
+}
+
+/* AI-side retrieved gallery — slightly larger thumbs and tighter grid
+   so it reads as a "search result" not a user upload */
+.attachments.retrieved{
+  margin-top:8px;
+  gap:5px;
+}
+.attachments.retrieved .attachment{
+  width:144px; height:144px;
+  border-radius:8px;
+  border:1px solid var(--border);
+}
+.attachments.retrieved.n-1 .attachment{ width:280px; height:180px; }
+.attachments.retrieved.n-2 .attachment{ width:170px; height:170px; }
+@media (max-width: 560px){
+  .attachments.retrieved .attachment{ width:104px; height:104px; }
+  .attachments.retrieved.n-1 .attachment{ width:220px; height:150px; }
+  .attachments.retrieved.n-2 .attachment{ width:140px; height:140px; }
+}
+
+/* ── HEADER — slim top bar across the whole page ────────────── */
+.header{
+  position:fixed; top:0; left:0; right:0;
+  height:54px; z-index:50;
+  display:flex; align-items:center;
+  padding:0 18px;
+  gap:14px;
+  background:var(--header-bg);
+  border-bottom:1px solid var(--border);
+  backdrop-filter:blur(10px);
+}
+.header .title{
+  font-size:14px; font-weight:500; color:var(--text);
+  letter-spacing:0.02em;
+  white-space:nowrap;
+}
+.header .title strong{ color:var(--accent-text); font-weight:600; }
+.header .sub{
+  font-size:12.5px; color:var(--text-dim);
+  line-height:1.4;
+  flex:1; min-width:0;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+@media (max-width: 720px){
+  .header .sub{ display:none; }
+}
+
+.refresh-btn{
+  flex-shrink:0;
+  background:var(--bg-elev);
+  border:1px solid var(--border);
+  color:var(--text-soft);
+  padding:6px 12px; border-radius:6px;
+  font-family:'DM Sans',sans-serif; font-size:12.5px;
+  letter-spacing:0.04em; cursor:pointer;
+  transition:all .15s;
+}
+.refresh-btn:hover{
+  border-color:var(--border-strong);
+  color:var(--text); background:var(--bg-elev-2);
+}
+
+/* Theme toggle — same compact style as camroll_demo.html */
+.theme-toggle {
+  background: none; border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text-soft); cursor: pointer;
+  width: 30px; height: 30px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 14px; line-height: 1; padding: 0;
+  transition: all 0.15s; flex-shrink: 0;
+}
+.theme-toggle:hover { color: var(--text); border-color: var(--border-strong); background: var(--bg-elev); }
+.theme-toggle .icon-dark, .theme-toggle .icon-light { display: none; }
+:root[data-theme="dark"] .theme-toggle .icon-dark { display: inline; }
+:root[data-theme="light"] .theme-toggle .icon-light { display: inline; }
+
+/* ── BOTTOM CHAT-BAR (ChatGPT-style) ──────────────────────── */
+.chatbar-wrap{
+  position:fixed;
+  left:50%; bottom:22px;
+  transform:translateX(-50%);
+  width:min(720px, calc(100vw - 40px));
+  z-index:50;
+  display:flex; flex-direction:column;
+  align-items:stretch;
+  gap:10px;
+  pointer-events:none;
+}
+.chatbar-wrap > *{ pointer-events:auto; }
+
+/* "you" turn pending/saved states. While pending, the AI reply shows a
+   playful rotating message + animated typing dots. When saved, we swap
+   the text to something celebratory and pop a tiny ✓ chip on the user msg. */
+.turn.you.pending .saving-msg .text{
+  color:var(--text-soft);
+  display:inline-flex; align-items:center; gap:8px;
+}
+.turn.you .saved-text{
+  color:var(--text-mid);
+  animation:saved-pop .45s cubic-bezier(.2,1.4,.4,1) both;
+}
+@keyframes saved-pop{
+  0%   { opacity:0; transform:translateY(4px) scale(.96); }
+  60%  { transform:translateY(0) scale(1.02); }
+  100% { opacity:1; transform:translateY(0) scale(1); }
+}
+
+/* Animated typing dots ("●●●") that play while the reply is pending */
+.typing-dots{
+  display:inline-flex; gap:3px; align-items:center;
+  margin-left:2px;
+}
+.typing-dots span{
+  width:5px; height:5px; border-radius:50%;
+  background:var(--text-faint);
+  animation:typing-dot 1.2s infinite ease-in-out;
+}
+.typing-dots span:nth-child(1){ animation-delay:0s; }
+.typing-dots span:nth-child(2){ animation-delay:0.18s; }
+.typing-dots span:nth-child(3){ animation-delay:0.36s; }
+@keyframes typing-dot{
+  0%, 80%, 100% { transform:scale(0.7); opacity:0.4; }
+  40%           { transform:scale(1.0); opacity:1.0; }
+}
+
+/* Saved badge — small chip that pops in next to the user's name.
+   Uses the accent color for both themes (lime in dark, deep green in light). */
+.saved-chip{
+  display:inline-block;
+  margin-left:8px;
+  font-size:10.5px; font-weight:700; letter-spacing:0.04em;
+  color:var(--chip-text);
+  background:var(--accent);
+  padding:2px 7px; border-radius:10px;
+  vertical-align:1px;
+  animation:chip-pop .4s cubic-bezier(.2,1.6,.4,1) both;
+  box-shadow:0 0 10px var(--accent-glow);
+}
+@keyframes chip-pop{
+  0%   { opacity:0; transform:scale(.5) translateY(-2px); }
+  100% { opacity:1; transform:scale(1)  translateY(0);    }
+}
+
+/* progress hint above the input */
+.contrib-progress{
+  align-self:center;
+  background:var(--bg-elev);
+  border:1px solid var(--border);
+  color:var(--text-soft);
+  font-size:12.5px; letter-spacing:0.03em;
+  padding:5px 13px; border-radius:30px;
+  backdrop-filter:blur(8px);
+  display:flex; align-items:center; gap:8px;
+}
+.contrib-progress .pdot{
+  width:6px; height:6px; border-radius:50%;
+  background:var(--accent);
+  box-shadow:0 0 10px var(--accent-glow);
+  animation:pdot-pulse 1.6s ease-in-out infinite;
+}
+@keyframes pdot-pulse{ 0%,100%{opacity:.5} 50%{opacity:1} }
+.contrib-progress.done .pdot{ background:var(--accent); }
+.contrib-progress b{ color:var(--text); font-weight:600; }
+
+/* the chat input row */
+.chatbar{
+  display:flex; align-items:flex-end; gap:8px;
+  background:var(--bg-elev);
+  border:1px solid var(--border);
+  border-radius:18px;
+  padding:9px 9px 9px 16px;
+  backdrop-filter:blur(14px);
+  box-shadow:0 14px 40px var(--shadow);
+  transition:border-color .15s, box-shadow .15s;
+}
+.chatbar:focus-within{
+  border-color:var(--accent-ring);
+  box-shadow:0 14px 40px var(--shadow), 0 0 0 3px var(--accent-tint);
+}
+#chat-input{
+  flex:1; background:none; border:none; outline:none;
+  color:var(--text); font-family:'DM Sans',sans-serif;
+  font-size:14.5px; line-height:1.5;
+  resize:none; padding:7px 0;
+  max-height:120px; min-height:24px;
+}
+#chat-input::placeholder{ color:var(--text-ghost); }
+#send-btn{
+  width:36px; height:36px; border-radius:12px;
+  background:var(--accent);
+  color:var(--chip-text); border:none;
+  font-size:16px; font-weight:700;
+  cursor:pointer; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  transition:opacity .15s, transform .1s;
+}
+#send-btn:hover{ opacity:0.85; }
+#send-btn:active{ transform:translateY(1px) scale(.97); }
+#send-btn:disabled{
+  background:var(--bg-elev-3); color:var(--text-ghost);
+  cursor:not-allowed; box-shadow:none;
+}
+.chat-hint{
+  align-self:center;
+  font-size:11.5px; color:var(--text-ghost);
+  letter-spacing:0.03em;
+}
+
+/* small responsiveness */
+@media (max-width: 820px){
+  .chatbar-wrap{ bottom:14px; width:calc(100vw - 24px); }
+}
+
+/* toast */
+.toast{
+  position:fixed;
+  left:50%; bottom:22px;
+  transform:translateX(-50%) translateY(20px);
+  background:var(--bg-elev);
+  border:1px solid var(--border-strong);
+  color:var(--text);
+  padding:11px 18px; border-radius:8px;
+  font-size:13.5px;
+  box-shadow:0 12px 30px var(--shadow);
+  opacity:0; pointer-events:none;
+  transition:all .25s;
+  z-index:200;
+  max-width:90vw;
+  backdrop-filter:blur(8px);
+}
+.toast.show{ opacity:1; transform:translateX(-50%) translateY(0); pointer-events:auto; }
+</style>
+</head>
+<body>
+
+<!-- Slim top header bar -->
+<div class="header">
+  <span class="title">camroll · <strong>question collection</strong></span>
+  <span class="sub">What would you ask an AI that remembers everything in your photo gallery? Browse the examples, then type your own below ↓</span>
+  <button class="refresh-btn" onclick="reshuffle()" title="Show different examples">↻ shuffle</button>
+  <button class="theme-toggle" title="Toggle theme" onclick="toggleTheme()">
+    <span class="icon-dark">☀</span><span class="icon-light">☾</span>
+  </button>
+</div>
+
+<!-- Chat thread of example conversations from other users -->
+<div class="thread" id="thread">
+  <div class="thread-inner" id="thread-inner"></div>
+</div>
+
+<div class="chatbar-wrap">
+  <div class="contrib-progress" id="contrib-progress">
+    <span class="pdot"></span>
+    <span id="progress-text">Please contribute <b>0&nbsp;/&nbsp;5</b> questions</span>
+  </div>
+  <div class="chatbar">
+    <textarea id="chat-input" rows="1"
+      placeholder="Type a question you'd ask the AI about your camera roll…"></textarea>
+    <button id="send-btn" disabled title="Send (Enter)">↑</button>
+  </div>
+  <div class="chat-hint">Enter to send · Shift + Enter for newline · auto-saved on send</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+// THEME (initial value set in <head> before paint).
+// Same key + behaviour as camroll_demo.html so users get a consistent
+// preference across pages of the camroll family.
+// ─────────────────────────────────────────────────────────────
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem('camroll-theme', next); } catch (e) {}
+}
+
+// ─────────────────────────────────────────────────────────────
+// Constants
+// ─────────────────────────────────────────────────────────────
+const NUM_QUESTIONS = 5;
+
+// Example chats from "other users". Each entry renders as a full chat turn:
+//   • user message (avatar + name + question text + (optional) reference photo
+//     they uploaded as context — usually 0 or 1)
+//   • camroll AI reply bubble below — text + the photos camroll RETRIEVED
+//     from their gallery as the answer (this is the "memory" superpower)
+//
+//   nUserImages → how many photos the user attached as context (0 or 1)
+//   nAiImages   → how many photos camroll retrieves as the answer
+//   keywords    → for picking matching photos from the embedded pool
+const TARGET_QUESTIONS = 5;
+const EXAMPLE_TASKS = [
+  {
+    name: 'Sarah K.',
+    text: 'Pick the happiest photo of me and my younger brother together at home — I\'ll send it to him for his birthday.',
+    aiReply: 'Found 17 photos of you two at home together. Here\'s the one with the strongest "happy" signal — both of you mid-laugh in the kitchen, Aug 2022. Want me to send it to him directly?',
+    keywords:['friends', 'smile', 'home', 'indoor', 'kitchen', 'group', 'people', 'portrait', 'selfie'],
+    nUserImages: 0, nAiImages: 1,
+  },
+  {
+    name: 'Marcus T.',
+    text: 'Turn my trip to New Zealand into a day-by-day travel diary.',
+    aiReply: 'Detected your NZ trip: Mar 14–28, 2023, 412 photos across 9 locations. Here\'s a preview of the cover photos for the first few days — drafting the full 14-day diary now.',
+    keywords:['travel', 'trip', 'mountain', 'landscape', 'lake', 'hiking', 'forest', 'sunset', 'nature'],
+    nUserImages: 0, nAiImages: 4,
+  },
+  {
+    name: 'Priya R.',
+    text: 'My friend just sent me this — she says we\'ve been here before. I don\'t remember it. When did I go?',
+    aiReply: 'Yes — you visited on Apr 19, 2019 around 3pm. That\'s a café on Carrer dels Sombrerers in Barcelona. Here\'s the matching photo from your gallery that day:',
+    keywords:['street', 'building', 'city', 'cafe', 'restaurant', 'park', 'bridge', 'church', 'plaza'],
+    nUserImages: 1, nAiImages: 1,
+  },
+  {
+    name: 'David L.',
+    text: 'What was my wife wearing on Liam\'s birthday last year?',
+    aiReply: 'On Liam\'s birthday (May 4, 2024) she\'s in 23 of the 81 photos from that day. Morning: navy linen dress with white sneakers. Evening: cream blouse for dinner. Showing both:',
+    keywords:['birthday', 'cake', 'family', 'wife', 'kid', 'child', 'party', 'gift'],
+    nUserImages: 0, nAiImages: 2,
+  },
+  {
+    name: 'Aiko M.',
+    text: 'What should I eat tonight? Recommend something I usually enjoy — I\'m feeling indecisive.',
+    aiReply: 'You photograph ramen, pasta, and warm noodle soups the most (~38% of food shots). Given tonight\'s cool weather, I\'d suggest tonkotsu — here are a few of your favorites from past visits:',
+    keywords:['food', 'restaurant', 'meal', 'lunch', 'dinner', 'noodle', 'pasta', 'pizza', 'plate', 'coffee'],
+    nUserImages: 0, nAiImages: 4,
+  },
+  {
+    name: 'Tomás G.',
+    text: 'I forgot to take a photo at this place when I was there — can you edit me into one?',
+    aiReply: 'Got it! I found your visit: Sept 12, 2022, late afternoon. Using a recent solo photo of you in similar lighting — here\'s the location photo I\'ll work with as the base:',
+    keywords:['landmark', 'monument', 'view', 'tower', 'statue', 'museum', 'church', 'plaza'],
+    nUserImages: 1, nAiImages: 1,
+  },
+  {
+    name: 'Hannah B.',
+    text: 'Find every photo of my dog from this exact angle — head-on, looking up.',
+    aiReply: 'Found 11 photos of Maple looking up at you. Here are the top 3 by sharpness — the most recent is from last Sunday\'s morning walk:',
+    keywords:['dog', 'cat', 'pet', 'animal', 'puppy', 'kitten', 'paws', 'fur'],
+    nUserImages: 1, nAiImages: 3,
+  },
+  {
+    name: 'Jules P.',
+    text: 'Make me a slideshow of the best 10 sunset photos from last year.',
+    aiReply: 'You have 87 sunset photos from 2024. Here\'s a preview of the 4 strongest — picked for color contrast and unique locations. Building the 60-second slideshow now.',
+    keywords:['sunset', 'sky', 'sun', 'evening', 'horizon', 'clouds', 'orange', 'landscape'],
+    nUserImages: 0, nAiImages: 4,
+  },
+  {
+    name: 'Mei W.',
+    text: 'Pick the 5 best photos from Anna\'s wedding to send to her.',
+    aiReply: 'From Anna\'s wedding (June 8, 2024) — here are 4 of my top picks: ceremony exit, first dance, cake-cutting close-up, and the candid of her laughing with her dad.',
+    keywords:['wedding', 'bride', 'groom', 'church', 'cake', 'dress', 'reception', 'ceremony'],
+    nUserImages: 0, nAiImages: 4,
+  },
+  {
+    name: 'Noah F.',
+    text: 'Suggest a birthday gift for my mom based on her hobbies in my photos.',
+    aiReply: 'Your mom appears most often gardening (47 photos), with watercolor brushes (12), and on long hikes (28). Here\'s what I noticed — quality pruning shears or a hiking-friendly sketchbook would suit her well.',
+    keywords:['mom', 'family', 'flower', 'garden', 'craft', 'home', 'portrait', 'smile'],
+    nUserImages: 0, nAiImages: 2,
+  },
+  {
+    name: 'Elena V.',
+    text: 'The carpet in our living room looks dated — recommend a more suitable color based on the rest of the room.',
+    aiReply: 'Your living room has warm oak floors, a cream linen sofa, and brass accents. Here\'s the photo I analyzed — a muted sage green or deep terracotta rug would complement the tones much better than the current beige.',
+    keywords:['home', 'living room', 'indoor', 'sofa', 'couch', 'kitchen', 'wall', 'interior'],
+    nUserImages: 1, nAiImages: 1,
+  },
+  {
+    name: 'Ben C.',
+    text: 'What restaurant did I go to last Saturday — and what did I order?',
+    aiReply: 'Saturday Nov 9 — you were at Tartine on Guerrero around 7pm. From your food photos that night: ricotta gnocchi, a side salad, and a shared slice of chocolate cake. Here are the photos:',
+    keywords:['restaurant', 'food', 'menu', 'dinner', 'meal', 'plate', 'drink', 'coffee'],
+    nUserImages: 0, nAiImages: 2,
+  },
+];
+
+// Stable color generator from a name string — gives each user a consistent
+// avatar tint without needing to ship avatar images. Lightness adapts to
+// theme so initials stay readable on white avatars in light mode too.
+function colorForName(name){
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
+  const hue = Math.abs(h) % 360;
+  const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  const sat   = isLight ? 50 : 50;
+  const light = isLight ? 42 : 38;
+  return {
+    bg:     `hsl(${hue}, ${sat}%, ${light}%)`,
+    bgSoft: `hsla(${hue}, ${sat}%, ${light + 10}%, 0.18)`,
+  };
+}
+function initialsFromName(name){
+  return name.split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase();
+}
+
+// (No background canvas / floating dots / filler images anymore — clean static page.)
+
+// ─────────────────────────────────────────────────────────────
+// EMBEDDED PHOTO POOL — real YFCC photos with captions, hand-curated
+// across categories (food, travel, pet, family, landmark, memory, city)
+// so the page works when opened directly from disk (file://).
+// Images are served by Flickr CDN, not from local files, so they
+// always load as long as you have an internet connection.
+// ─────────────────────────────────────────────────────────────
+const PHOTO_POOL = /*POOL_START*/[
+  {"thumb": "https://farm4.staticflickr.com/3720/9211917570_85c7b3dbe8_q.jpg", "caption": "I remember this fantastic Fourth of July dinner! This whole cooked lobster, a vibrant red, was such a treat, with its claws neatly banded, sitting proudly on a plate next to a perfectly boiled cob of sweet corn. The plate has a lovely blue striped rim, resting on a pretty blue and green patterned tablecloth. You can even spot a fork waiting in the corner. It feels like we were eating outdoors, may", "date": "2013-07-04", "page": "https://www.flickr.com/photos/11271562@N00/9211917570/"},
+  {"thumb": "https://farm4.staticflickr.com/3746/12608107165_c945e126f2_q.jpg", "caption": "Oh, what a cheerful selfie I captured of myself! I'm beaming directly at the camera with a big, natural smile, wearing my black-framed glasses and a vibrant red and black patterned headband. My nose piercing is clearly visible, adding a familiar touch. I'm indoors, likely at home, and I love how the background subtly shows some of the decorative letters or shapes stuck to the door, which always re", "date": "2014-02-18", "page": "https://www.flickr.com/photos/10204545@N02/12608107165/"},
+  {"thumb": "https://farm6.staticflickr.com/5301/5624117336_2f924a742a_q.jpg", "caption": "I'm continuing my exploration, and this shot really captures the broader urban landscape I'm experiencing. The wide street stretches out before me, flanked on both sides by charming shophouse-style buildings, some with awnings and prominent signage like 'Mosi Cafe' on the right. A purple public bus is visible in the distance, and I can see people strolling along the sidewalks, adding to the everyd", "date": "2011-04-16", "page": "https://www.flickr.com/photos/10204545@N02/5624117336/"},
+  {"thumb": "https://farm8.staticflickr.com/7322/10233743095_950b5b1f62_q.jpg", "caption": "I was absolutely captivated by the stunning display of autumn colors in this Japanese maple tree. Its delicate leaves were a fiery mix of vibrant reds and oranges, creating such a rich and warm tapestry that just filled the frame. Below the tree, a soft carpet of moss-covered rocks and even more fallen leaves in similar brilliant hues added to the serene beauty of the scene. It felt like a truly p", "date": "2013-10-12", "page": "https://www.flickr.com/photos/12977071@N00/10233743095/"},
+  {"thumb": "https://farm3.staticflickr.com/2853/9617495286_765907089e_q.jpg", "caption": "I couldn't help but capture this wonderfully romantic scene at the train station. Walking ahead of me on the platform, I spotted a newly married couple, the woman still in her elegant white wedding dress with delicate detailing on the back and a lovely floral accessory in her hair. Beside her, the man, looking sharp in a dark suit, was pulling a vibrant pink suitcase adorned with travel stickers a", "date": "2013-08-28", "page": "https://www.flickr.com/photos/14188121@N00/9617495286/"},
+  {"thumb": "https://farm4.staticflickr.com/3403/4641990580_33b431c11d_q.jpg", "caption": "Here's a wonderful shot of the bride and groom together, cutting their elegant three-tiered wedding cake! The cake was beautifully decorated with white frosting, delicate purple ribbons, and floral accents, sitting proudly on a silver stand. It was such a lovely, traditional moment to capture during the reception, marking a sweet highlight of the celebration. You can see the festive atmosphere in ", "date": "2010-05-22", "page": "https://www.flickr.com/photos/13544852@N04/4641990580/"},
+  {"thumb": "https://farm3.staticflickr.com/2166/2127405832_4d52cb23df_q.jpg", "caption": "On December 20, 2007, I captured this close-up of my dinner, featuring two slices of a delicious-looking pizza on a white plate. One large slice, clearly halfway eaten, has a rich array of toppings including melted cheese, bright red tomatoes or peppers, red onions, and some dark leafy greens like basil or spinach. My fork rests on the larger slice, ready for the next bite. The warm, inviting glow", "date": "2007-12-20", "page": "https://www.flickr.com/photos/12028361@N00/2127405832/"},
+  {"thumb": "https://farm9.staticflickr.com/8028/7135544663_f017172972_q.jpg", "caption": "I loved capturing the playful spirit of the birthday celebration! Here, three of my friends are having a fun moment against the familiar vibrant orange wall. My friend in the blue shirt and jeans is playfully perched on a small stool, with the other two friends, one in a black t-shirt and the other with a beard in an orange t-shirt, playfully holding him up. Everyone is smiling and laughing, clear", "date": "2012-04-28", "page": "https://www.flickr.com/photos/10357544@N07/7135544663/"},
+  {"thumb": "https://farm3.staticflickr.com/2632/4187886654_7d0c05ec15_q.jpg", "caption": "I captured this lively scene of a group of us gathered around a large, round dining table. Everyone looks like they're enjoying themselves, with some smiling directly at the camera. There are plates of food, glasses of red wine, and water glasses spread across the tablecloth, indicating a wonderful meal in progress. The setting appears to be a restaurant or a banquet hall, given the textured walls", "date": "2009-11-17", "page": "https://www.flickr.com/photos/12992900@N00/4187886654/"},
+  {"thumb": "https://farm9.staticflickr.com/8077/8328505485_15c07dec30_q.jpg", "caption": "What a sweet memory from New Year's Eve! This adorable child, with their bright eyes and bouncy curly hair, is absolutely radiating joy as they stand with arms raised in a playful pose beside a vibrant flower bed. They're wearing such a lovely tiered pink dress, which looks perfect amidst all the beautiful petunias bursting with color in shades of pink, purple, and red. In the background, I can se", "date": "2012-12-31", "page": "https://www.flickr.com/photos/10204545@N02/8328505485/"},
+  {"thumb": "https://farm9.staticflickr.com/8026/7404071250_df6100ffb8_q.jpg", "caption": "This shot captures a beautiful, rugged view of the mountains we were exploring. The landscape here is so wild, with massive grey rock formations dominating the scene, and higher up, you can still see patches of lingering snow. In the foreground, there's a mix of dry, reddish-brown grasses and some small pools of water, reflecting the clear blue sky with its scattered white clouds. It really shows ", "date": "2012-05-30", "page": "https://www.flickr.com/photos/10357544@N07/7404071250/"},
+  {"thumb": "https://farm7.staticflickr.com/6067/6043039423_c4e358c5ea_q.jpg", "caption": "On August 9th, amidst our mountain hiking adventure, I captured this beautiful family portrait against the breathtaking backdrop of the snow-capped mountains. My partner, our child, and another family member are all sitting together on a low stone wall, their faces full of smiles as they admire the expansive view. The majestic peaks stretch across the horizon under a perfectly clear blue sky, with", "date": "2011-08-09", "page": "https://www.flickr.com/photos/12977071@N00/6043039423/"},
+  {"thumb": "https://farm5.staticflickr.com/4135/4815691414_9ca3d09e98_q.jpg", "caption": "I remember taking this picture on July 7, 2010, capturing a warm and cozy indoor gathering with what looks like family or friends. The scene is softly lit, creating a lovely intimate atmosphere around a large wooden table where several people are seated, engaged in conversation or perhaps sharing a meal. I can spot a young girl in a pink top among the group. One of the adults is wearing a white t-", "date": "2010-07-07", "page": "https://www.flickr.com/photos/10191539@N03/4815691414/"},
+  {"thumb": "https://farm6.staticflickr.com/5292/5475458708_e01867ea8c_q.jpg", "caption": "On February 19, 2011, my extensive day exploring Montjuïc hill in Barcelona brought me to this impressive expanse. This photo captures a grand plaza, likely part of the Olympic area, with a vast tiled surface stretching out before a magnificent, multi-story building featuring a prominent tower and classic architecture. What immediately caught my eye were the numerous tall, cylindrical pillars arra", "date": "2011-02-19", "page": "https://www.flickr.com/photos/10661932@N00/5475458708/"},
+  {"thumb": "https://farm4.staticflickr.com/3699/9656021853_5fcb460e98_q.jpg", "caption": "I stumbled upon this incredibly unique shop entrance during my getaway, with 'TRICK DOG' spelled out in vibrant mosaic tiles above the light green double doors. The entire doorway is a work of art, framed with intricate mosaic patterns featuring animal-like figures, including a whimsical dog leaping above the sign. The building itself is a lovely pale pink, which I've noticed in a few spots around", "date": "2013-09-01", "page": "https://www.flickr.com/photos/10191539@N03/9656021853/"},
+  {"thumb": "https://farm4.staticflickr.com/3826/13404833505_2a4d5f7b52_q.jpg", "caption": "I captured this expansive black and white view of a city, looking down from a high vantage point. In the foreground, there's a really interesting building with distinctive architectural details, like its pointed gables and arched windows, contrasting nicely with the more modern structures beyond. A long street stretches into the distance, flanked by a dense array of buildings, creating a classic u", "date": "2014-03-25", "page": "https://www.flickr.com/photos/11271562@N00/13404833505/"},
+  {"thumb": "https://farm7.staticflickr.com/6125/5944418571_f85f8b4d07_q.jpg", "caption": "I remember this moment on July 14, 2011, continuing our journey, when I spotted this brown sign for 'LOON LAKE PUBLIC ACCESS'. The arrow pointing to the left caught my eye, suggesting a turn or a specific path to take. It stood there on two metal poles, surrounded by a carpet of tall green grass along what looks like a roadside. Behind it, a dense line of trees, including some with light-colored b", "date": "2011-07-14", "page": "https://www.flickr.com/photos/10191539@N03/5944418571/"},
+  {"thumb": "https://farm1.staticflickr.com/57/180546589_3de7cf73e0_q.jpg", "caption": "Today, I walked down this quiet street, capturing the scene in black and white. The older buildings lining both sides, with their distinctive architecture, like the arched windows on the left, gave the area a charming, historic feel. Several cars were parked along the curb, suggesting a quiet residential or small commercial area. The bright sunlight cast long, clear shadows across the road, highli", "date": "2006-07-02", "page": "https://www.flickr.com/photos/14447530@N00/180546589/"},
+  {"thumb": "https://farm8.staticflickr.com/7265/6901306736_e511367559_q.jpg", "caption": "I took this photo showing an adult elephant in what looks like an enclosure or sanctuary area. It's standing near a metal railing, and right in front of it, a small calf is curled up and resting peacefully on the ground. In the background, I can also spot a dog wandering around near some trees and a wooden fence, with some fruit or vegetable scraps scattered on the dirt, possibly food for the anim", "date": "2012-04-04", "page": "https://www.flickr.com/photos/10357544@N07/6901306736/"},
+  {"thumb": "https://farm6.staticflickr.com/5149/5631794644_b78246ee33_q.jpg", "caption": "I captured this vibrant bush, absolutely bursting with bright yellow blossoms. It looks like Forsythia, a beautiful sign that spring has truly arrived. The way the sun catches the petals creates such a cheerful and energetic feel against the darker branches, and I just loved the dense display of color, signaling the reawakening of nature.", "date": "2011-04-18", "page": "https://www.flickr.com/photos/14188121@N00/5631794644/"},
+  {"thumb": "https://farm2.staticflickr.com/1303/4701746214_7f20843af0_q.jpg", "caption": "I remember taking this picture on June 13, 2010, capturing a lively street scene at dusk, or perhaps early evening, in what looks like a vibrant city known for its nightlife. The street was bustling with people walking, and the buildings on both sides featured characteristic architecture with balconies and numerous brightly lit signs. On the left, I could clearly see a sign for 'ABSINTHE HOUSE', h", "date": "2010-06-13", "page": "https://www.flickr.com/photos/10191539@N03/4701746214/"},
+  {"thumb": "https://farm4.staticflickr.com/3405/3272090517_c7cfd3f7a4_q.jpg", "caption": "I remember capturing this incredibly sweet moment of our beloved pets. Here, our big, dark-furred dog, with its distinctive graying muzzle, is snuggled up closely with our orange and white cat on what looks like our light-colored couch. The cat is completely at ease, sleeping peacefully on its side, while the dog's head is resting nearby. It's such a tender and quiet scene, showing just how comfor", "date": "2009-02-11", "page": "https://www.flickr.com/photos/10661932@N00/3272090517/"},
+  {"thumb": "https://farm9.staticflickr.com/8004/7253022398_2f43babd6a_q.jpg", "caption": "This photo from May 22nd is another adorable moment from our kids' pirate playtime. It captures my younger child, still fully in their pirate character, with that bright red hat and eyepatch. They're making such a funny face here, with their eyes squinted and tongue sticking out, probably just being silly or reacting to the flash. I can't help but smile seeing their pink t-shirt prominently featur", "date": "2012-05-22", "page": "https://www.flickr.com/photos/10129939@N08/7253022398/"},
+  {"thumb": "https://farm3.staticflickr.com/2238/2265989838_c859ea6281_q.jpg", "caption": "I remember getting this incredible panoramic view of Riga, likely from a high vantage point like a church tower, looking out over the misty, overcast cityscape. The Daugava River stretches across the frame, with the impressive Vanšu Bridge gracefully arching over it in the distance. I can clearly see the historic Old Town with its distinctive red-tiled roofs and the prominent spires of churches, c", "date": "2008-02-10", "page": "https://www.flickr.com/photos/14188121@N00/2265989838/"},
+  {"thumb": "https://farm1.staticflickr.com/75/186761485_3149370686_q.jpg", "caption": "This shot really captures the lively, communal vibe of our outdoor hangout on the city sidewalk. I wasn't in this one, but it shows so many of our friends gathered, some standing and chatting, others sitting or kneeling. In the foreground, a woman is sitting on a wooden chair, cradling a baby, with a man next to her, also seated and looking at the baby, creating such a sweet, intimate moment amids", "date": "2006-07-09", "page": "https://www.flickr.com/photos/12754005@N00/186761485/"},
+  {"thumb": "https://farm9.staticflickr.com/8149/7290541412_640f7dfb05_q.jpg", "caption": "I captured this striking view of a beautiful, old stone church, looking up at its impressive bell tower under an overcast sky. The ancient stonework, covered in patches of what looks like lichen or moss, really emphasizes its age and history. I loved the detail of the two large bells nestled in the belfry and the small, circular window below them. The old wooden door, slightly ajar at the base, be", "date": "2012-05-23", "page": "https://www.flickr.com/photos/10357544@N07/7290541412/"},
+  {"thumb": "https://farm1.staticflickr.com/212/453193823_421f4c41c5_q.jpg", "caption": "I remember capturing this humorous moment during a meal, likely at a beautiful coastal restaurant. My friend, with her reddish-brown hair and freckled shoulders, is leaning across the wooden table with a playful, wide-mouthed expression, perhaps in anticipation or surprise about the delicious food. In front of her is a plate of oysters, beautifully arranged on a bed of salt, topped with a creamy y", "date": "2007-03-10", "page": "https://www.flickr.com/photos/12754005@N00/453193823/"},
+  {"thumb": "https://farm3.staticflickr.com/2671/3913452089_6d9b042315_q.jpg", "caption": "I remember this incredible pizza from a night out! The crust was perfectly charred with that wonderful Neapolitan style, and the melted cheese, rich tomato sauce, and fresh basil leaves created such a delicious combination. It looks like we were enjoying a meal at a restaurant, with other plates, a refreshing dark drink, and a glass of water on the warm wooden table. It was a lovely evening sharin", "date": "2009-09-12", "page": "https://www.flickr.com/photos/12977071@N00/3913452089/"},
+  {"thumb": "https://farm1.staticflickr.com/114/300029020_909b8bf770_q.jpg", "caption": "I captured a moment of my black pet, possibly a dog or cat, silhouetted against a bright, almost ethereal light source coming from behind. The pet is seen from the back, with its head tilted upwards, and its prominent, pointed ears are clearly visible. It's sitting on what looks like a white blanket or cushion, giving the scene a soft, domestic feel. In the soft blur of the background, I can just ", "date": "2006-11-18", "page": "https://www.flickr.com/photos/14447530@N00/300029020/"},
+  {"thumb": "https://farm8.staticflickr.com/7267/7672227866_09ac65bb8d_q.jpg", "caption": "On the evening of July 27, 2012, I captured this stunning panoramic view of a city skyline at night, looking across a dark body of water. The urban landscape was ablaze with countless lights, illuminating the towering buildings and creating a vibrant spectacle. The colorful reflections shimmered beautifully on the water's surface, adding a dynamic quality to the scene. To the left, I could clearly", "date": "2012-07-27", "page": "https://www.flickr.com/photos/10661932@N00/7672227866/"},
+  {"thumb": "https://farm7.staticflickr.com/6054/6305069088_6d9672fb79_q.jpg", "caption": "I snapped this fun group photo during our Halloween festivities, where all the kids gathered in their fantastic costumes in front of a bright green screen. We had quite the lineup: a mummy, a child with an interesting painted face, Buzz Lightyear, a smaller kid in camouflage, two ninjas, an elegant Egyptian princess, and another girl in a dark, flowy dress with red accents. An adult woman in a leo", "date": "2011-11-01", "page": "https://www.flickr.com/photos/24965986@N00/6305069088/"},
+  {"thumb": "https://farm5.staticflickr.com/4120/4776103284_f6812bc27b_q.jpg", "caption": "This photo captures a really sweet moment from my son's birthday celebration. My wife and son are both leaning in with such focus, ready to blow out the candles on his white cake. My younger child is sitting in the high chair, looking on with wide-eyed curiosity, probably wondering what all the excitement is about. The cake looks so inviting with its lit candles, and you can even spot the lighter ", "date": "2010-07-08", "page": "https://www.flickr.com/photos/10129939@N08/4776103284/"},
+  {"thumb": "https://farm7.staticflickr.com/6062/6076761836_23178047b3_q.jpg", "caption": "On August 24th, here’s another classic shot from our Nutella adventure! My little one is sitting happily on the kitchen’s tiled floor, still in her cute pink and white long-sleeve shirt with animal patterns and patterned pants, proudly holding the Nutella jar. Her face is beautifully smeared with chocolate, a testament to her thorough enjoyment! Our loyal Golden Retriever is once again lounging pa", "date": "2011-08-24", "page": "https://www.flickr.com/photos/10129939@N08/6076761836/"},
+  {"thumb": "https://farm8.staticflickr.com/7167/6474572429_e9202dbaf2_q.jpg", "caption": "On December 7th, I captured this breathtaking panoramic view, showcasing the serene beauty of a winter landscape. A wide expanse of calm water, possibly a large lake or a fjord, stretches out before me, reflecting the soft light of the sky. Along the shore in the foreground, there's a rocky, rugged terrain with some sparse, dry bushes, characteristic of the colder months. Towering over the water i", "date": "2011-12-07", "page": "https://www.flickr.com/photos/10129939@N08/6474572429/"},
+  {"thumb": "https://farm1.staticflickr.com/136/326308227_d60aaabb8d_q.jpg", "caption": "Here's me at the holiday party, standing in front of our beautifully decorated Christmas tree, which is sparkling with lights and a snowflake ornament. I'm wearing a striped shirt and a black tie, and I'm holding up a small white piece of paper or card, maybe a gift tag or a slip from a game we were playing. The familiar exposed brick wall behind me really sets the cozy, festive scene for our gath", "date": "2006-12-16", "page": "https://www.flickr.com/photos/12754005@N00/326308227/"},
+  {"thumb": "https://farm2.staticflickr.com/1360/978884897_6714130d8d_q.jpg", "caption": "Here's a lovely shot of us enjoying a meal out! My partner is smiling brightly at the camera, while I'm focused on what looks like a menu or some notes in my hand. We're seated comfortably at a table in a restaurant, with some delicious-looking drinks in front of us, including what appears to be a white wine. Through the large windows in the background, you can catch a glimpse of the street outsid", "date": "2007-07-12", "page": "https://www.flickr.com/photos/10191539@N03/978884897/"},
+  {"thumb": "https://farm4.staticflickr.com/3691/9180638412_1819bf095d_q.jpg", "caption": "I remember seeing this vibrant street scene, likely still within the festive atmosphere of the Castro district or a similar lively area during my California trip. The building prominently displayed a rainbow pride flag, a powerful symbol of the celebrations and advocacy I witnessed. Below it, an ornate 'COCKTAILS' sign hinted at the nightlife, while a larger illuminated sign above read 'Amelia's'.", "date": "2013-06-30", "page": "https://www.flickr.com/photos/24965986@N00/9180638412/"},
+  {"thumb": "https://farm4.staticflickr.com/3456/3898289627_a30c80934b_q.jpg", "caption": "I remember the excitement when a young boy was so happy to receive this cool costume! He’s kneeling on the floor, holding up a green and white medieval-style tunic, which looks perfect for dress-up or a themed event. His bright smile truly shows how thrilled he was. We were in our living room with the orange wall in the background and the dining area visible, and you can spot some colorful gift ba", "date": "2009-09-07", "page": "https://www.flickr.com/photos/12977071@N00/3898289627/"},
+  {"thumb": "https://farm1.staticflickr.com/67/203084779_095283ca26_q.jpg", "caption": "I captured this close-up of a delicious seafood dish, which looks like a perfectly cooked lobster or a very large prawn, split open and ready to eat. It's resting on a white plate, and I can see my fork nearby, along with some remnants of the meal, showing I've already started enjoying it. The dim lighting in the shot gives the whole scene a cozy, intimate feel, suggesting I was likely at a restau", "date": "2006-07-31", "page": "https://www.flickr.com/photos/14447530@N00/203084779/"},
+  {"thumb": "https://farm5.staticflickr.com/4003/4641924136_ea9cf54c0b_q.jpg", "caption": "I captured this lovely shot of the happy wedding party posing together outside the ancient stone church, bathed in bright sunshine. The newlyweds, along with their adorable flower girl and elegant bridesmaid, are all beaming. The bride looks beautiful in her strapless white gown and veil, while the groom is dapper in his black suit with tails and green tie. The flower girl is charming in her white", "date": "2010-05-22", "page": "https://www.flickr.com/photos/13544852@N04/4641924136/"},
+  {"thumb": "https://farm1.staticflickr.com/47/180547322_ef20de6945_q.jpg", "caption": "Today, at the Church Square market, I spotted this really striking display—what looks like a statue or mannequin dressed in an old-fashioned white lace gown with teal ribbons. It had white hair and a painted face, and its gloved hands were raised, holding up a dark green, possibly woven, box or bag. It was positioned on what looked like the back of a vehicle or a display stand, with a brick buildi", "date": "2006-07-02", "page": "https://www.flickr.com/photos/14447530@N00/180547322/"},
+  {"thumb": "https://farm4.staticflickr.com/3067/2710055904_729fb50630_q.jpg", "caption": "On July 27th, 2008, I captured this shot of our stainless steel gas stovetop, focusing on the active cooking happening. A metal griddle or flat pan is heating up on one of the burners, with a small, irregularly shaped orange-colored piece of food, perhaps some kind of pancake or fritter, sizzling away. A long, shiny metallic tube or handle from a cooking utensil extends prominently into the foregr", "date": "2008-07-27", "page": "https://www.flickr.com/photos/14447530@N00/2710055904/"},
+  {"thumb": "https://farm4.staticflickr.com/3088/3170905015_3147e5aecd_q.jpg", "caption": "This photo brings back memories of a fascinating museum visit! I was standing in a grand hall, capturing this impressive view of a massive dinosaur skeleton, likely a sauropod given its long neck and tail, towering over everyone. There are quite a few people around, all engrossed in the exhibits, and I can see a woman and a young girl in the foreground, also looking at the displays. The museum its", "date": "2009-01-02", "page": "https://www.flickr.com/photos/12992900@N00/3170905015/"},
+  {"thumb": "https://farm8.staticflickr.com/7057/6894391061_b522070025_q.jpg", "caption": "I captured a warm and lively moment during a dinner party with friends. We're all gathered around a wooden table, enjoying our meals—it looks like pasta with some green salads—and drinks, with bottles of beer and glasses visible. The lighting in the room is cozy, casting a warm glow, and everyone seems to be in good spirits. One of my friends on the left is mid-gesture, perhaps raising a glass for", "date": "2012-02-17", "page": "https://www.flickr.com/photos/24965986@N00/6894391061/"},
+  {"thumb": "https://farm6.staticflickr.com/5098/5474883667_fcea15a8c9_q.jpg", "caption": "On February 21, 2011, my Montserrat adventure continued to offer exciting new perspectives! This photo captures the view from inside a funicular or mountain train, looking down the tracks as we curved through the dramatic mountain landscape. The rails cut a path between steep, rocky slopes covered in sparse green vegetation, creating an impressive engineering feat amidst nature. In the distance, I", "date": "2011-02-21", "page": "https://www.flickr.com/photos/10661932@N00/5474883667/"},
+  {"thumb": "https://farm9.staticflickr.com/8097/8471884809_a1e899860c_q.jpg", "caption": "Wow, what an intense and a bit scary sight this was! I captured this from inside a car or bus, looking out the window at a massive plume of smoke billowing from a hillside. It looks like a significant wildfire, with the smoke stretching across the sky, completely dominating the horizon. The landscape below, with its dry, golden fields and scattered trees, just adds to the feeling of how vulnerable", "date": "2013-02-14", "page": "https://www.flickr.com/photos/10204545@N02/8471884809/"},
+  {"thumb": "https://farm5.staticflickr.com/4092/4839078243_5c141f1a0a_q.jpg", "caption": "I remember this breathtaking view during my trip to the mountains. The majestic, snow-capped Mount Rainier stands proudly against a perfectly clear blue sky, its glaciers gleaming in the sun. Below, a serene, deep blue lake is nestled amidst a dense forest of evergreen trees, with winding paths visible through the lush greenery. The foreground is a beautiful grassy slope, speckled with tiny wildfl", "date": "2010-07-25", "page": "https://www.flickr.com/photos/12977071@N00/4839078243/"},
+  {"thumb": "https://farm5.staticflickr.com/4010/4431631643_16b174bc99_q.jpg", "caption": "I captured this street scene, which felt like a slice of everyday life in an urban setting during my trip. There's a prominent, long elevated structure or underpass running along the left side, providing a sense of scale and modern infrastructure to the city. Beneath it, I can see a street with parked cars and numerous bicycles, suggesting it's a busy area. On the right, the sidewalk is lined with", "date": "2010-03-06", "page": "https://www.flickr.com/photos/14188121@N00/4431631643/"},
+  {"thumb": "https://farm4.staticflickr.com/3780/9386269114_6fc19bbda3_q.jpg", "caption": "I remember seeing this incredibly charming and detailed wooden carving, possibly on a door or a panel. It depicted an entire orchestra of whimsical, anthropomorphic animals! There was a monkey skillfully playing a trumpet, an elegant owl with a saxophone, a cool cat rocking out on the drums, a bear intently playing a violin, and even a little pig-like creature with an accordion. The artistry was f", "date": "2013-07-28", "page": "https://www.flickr.com/photos/24965986@N00/9386269114/"},
+  {"thumb": "https://farm9.staticflickr.com/8052/8081250979_6d91255055_q.jpg", "caption": "This shot captures a view of a modern office building for 'ENBRIDGE' that we passed during our 'Moving Day' journey on October 12, 2012. It's a multi-story building with a mix of beige and light brown paneling, blue trim, and large reflective windows. The main entrance looks quite grand, with stone accents and a set of stairs leading up to the main doors. The sky above is overcast, making for a so", "date": "2012-10-12", "page": "https://www.flickr.com/photos/10129939@N08/8081250979/"},
+  {"thumb": "https://farm4.staticflickr.com/3345/3446561658_ddf930b829_q.jpg", "caption": "On April 14, 2009, I captured a photo of a dedication sign titled \"The Margaret Parkinson & Karen Creason Garden.\" This sign features a black and white portrait of two women, Margaret Parkinson and Karen Creason, both wearing glasses and smiling, on the left side. Their names are prominently displayed next to a lovely floral or vine motif, and at the bottom right, the PETA (People for the Ethical ", "date": "2009-04-14", "page": "https://www.flickr.com/photos/12028361@N00/3446561658/"},
+  {"thumb": "https://farm4.staticflickr.com/3480/3697058435_11aefc49c5_q.jpg", "caption": "I remember taking this picture of a beautiful white dog, possibly an English Setter or a similar breed, enjoying a walk outdoors. The dog has lovely light brown or orange markings and is on a leash, walking across a sandy or dirt path. In the background, there's a lush green line of trees and bushes under what looks like a sunny sky, indicating a perfect day for an outdoor adventure. It really cap", "date": "2009-07-05", "page": "https://www.flickr.com/photos/12992900@N00/3697058435/"},
+  {"thumb": "https://farm4.staticflickr.com/3294/2710065798_770a515884_q.jpg", "caption": "On July 27th, 2008, I captured this adorable close-up of our child, beaming with a wide, joyful smile that made their blue eyes sparkle. Their cheeks were rosy, and a tiny smudge of food on their chin hinted at a delicious, perhaps messy, snack or meal. They're wearing a dark long-sleeved shirt with 'NIPIGON LAKE' clearly visible on the front, over what looks like a lighter undershirt. In the soft", "date": "2008-07-27", "page": "https://www.flickr.com/photos/14447530@N00/2710065798/"},
+  {"thumb": "https://farm8.staticflickr.com/7186/6989459692_9ffd5a37e9_q.jpg", "caption": "I loved capturing this candid and joyful moment from the birthday celebration! Here, three of my friends are grouped together, sharing a happy embrace. The friend in the middle, wearing glasses and a blue shirt, is perched on a small stool, beaming, while the other two friends, one in a black t-shirt and another in a red t-shirt, are laughing and holding onto him. Their smiles and the way they're ", "date": "2012-04-28", "page": "https://www.flickr.com/photos/10357544@N07/6989459692/"},
+  {"thumb": "https://farm4.staticflickr.com/3651/3302948532_2c183ab11d_q.jpg", "caption": "Here I captured two friends enjoying a relaxed meal at what looks like a cozy pub or restaurant. The woman on the left, with dark hair, is focused on her plate, while the man with long, dark curly hair, glasses, and a gray scarf, looks directly at the camera with a subtle expression. Our table is laden with plates, empty glasses, and drinks, including a couple of beers and a glass with a lime wedg", "date": "2009-02-22", "page": "https://www.flickr.com/photos/13544852@N04/3302948532/"},
+  {"thumb": "https://farm3.staticflickr.com/2023/4512253837_663c5db133_q.jpg", "caption": "I remember capturing this sweet moment of our pets interacting around the window. Our beautiful white cat is sitting so elegantly on the windowsill, looking directly at me with those bright eyes, while our ginger cat is partially visible behind it, seemingly observing the outside world through the glass. And just beyond the window, our furry dog friend is looking in, pressing their nose against th", "date": "2010-01-26", "page": "https://www.flickr.com/photos/10204545@N02/4512253837/"},
+  {"thumb": "https://farm5.staticflickr.com/4034/4642013434_f200035812_q.jpg", "caption": "I captured this lively moment of guests enjoying themselves on the dance floor during the wedding reception. The room is filled with people swaying and socializing, some with drinks in hand, under the beautifully draped white marquee ceiling. You can see various groups of friends and family, some dancing with enthusiasm, others chatting near the tables, all contributing to the energetic and joyful", "date": "2010-05-22", "page": "https://www.flickr.com/photos/13544852@N04/4642013434/"},
+  {"thumb": "https://farm1.staticflickr.com/169/484933408_5b1131920c_q.jpg", "caption": "On May 2, 2007, I'm captured during what appears to be a birthday celebration. I'm holding up a large bottle of rosé wine, examining it with a quizzical or slightly skeptical expression, my brow furrowed as if deep in thought about the beverage or the festivities. In the background, a colorful \"HAPPY BIRTHDAY\" banner is strung up, clearly indicating the celebratory mood. The dim indoor lighting su", "date": "2007-05-02", "page": "https://www.flickr.com/photos/12028361@N00/484933408/"},
+  {"thumb": "https://farm4.staticflickr.com/3641/3348342188_8662f26bcc_q.jpg", "caption": "On March 5, 2009, I captured this impressive view of an urban landscape, framed by the robust metal structure of a large bridge. The intricate steel beams of the bridge, supported by a massive concrete pillar on the left, dominate the foreground. Beneath the bridge, a bustling city scene unfolds with several multi-story buildings, some appearing residential and others more commercial. I can see a ", "date": "2009-03-05", "page": "https://www.flickr.com/photos/12028361@N00/3348342188/"},
+  {"thumb": "https://farm3.staticflickr.com/2644/3849346391_1efab04818_q.jpg", "caption": "What a breathtaking aerial view I captured today! The vast, calm lake stretches out, its dark blue water contrasting beautifully with the rich, vibrant green of the surrounding forests that blanket the mountainsides. You can see a winding road tracing the contours of the land, leading to what looks like some open fields and perhaps a small settlement or recreational area near the water's edge. It ", "date": "2009-08-08", "page": "https://www.flickr.com/photos/13544852@N04/3849346391/"},
+  {"thumb": "https://farm9.staticflickr.com/8007/7133612577_d699ca491e_q.jpg", "caption": "On May 1st, I captured this sprawling, elevated view of the theme park, giving a real sense of its scale. From this high vantage point, likely from a Ferris wheel or another tall ride, I could see the central body of water winding through the park, surrounded by various attractions and buildings. In the background, what looks like the Grizzly River Run mountain area stands out, with the city stret", "date": "2012-05-01", "page": "https://www.flickr.com/photos/10129939@N08/7133612577/"},
+  {"thumb": "https://farm6.staticflickr.com/5516/10506947904_7be7d00a34_q.jpg", "caption": "I remember this incredibly sweet moment, celebrating what looks like a very special birthday! This adorable little girl, with her beautiful curly hair and sparkling eyes, is beaming a huge smile at the camera. She's wearing such a cute pink and purple dress, complete with a tiny tiara, making her look like a little princess. Next to her is this fantastic three-tier stand overflowing with cupcakes,", "date": "2013-10-27", "page": "https://www.flickr.com/photos/10204545@N02/10506947904/"},
+  {"thumb": "https://farm3.staticflickr.com/2859/10914253396_3b0732fb01_q.jpg", "caption": "I remember this sweet scene from a birthday celebration, captured indoors, likely in a kitchen or dining area. There's a beautiful two-tier cake on the counter, elegantly decorated with red roses and pink icing, and four candles are already lit, casting a warm glow. Two women are busy in the background, with one in a vibrant pink dress reaching over the counter, and another in a darker top further", "date": "2013-06-08", "page": "https://www.flickr.com/photos/11271562@N00/10914253396/"},
+  {"thumb": "https://farm1.staticflickr.com/63/205877266_70aa43318d_q.jpg", "caption": "I just love this photo from the birthday celebration, capturing another happy moment with my friends! Here, one of my friends is absolutely beaming at the camera, holding up a really fun, large yellow gift wrapped to look like a giant piece of candy. Her smile is so infectious, and it's clear she's enjoying the party. In the background, another friend of mine is standing near a doorway, also smili", "date": "2006-07-12", "page": "https://www.flickr.com/photos/12992900@N00/205877266/"},
+  {"thumb": "https://farm5.staticflickr.com/4133/5220046317_eb7babb10b_q.jpg", "caption": "On November 28, 2010, I captured this hilarious moment of a man (my friend/partner/family member) absolutely savoring a drumstick! He's closing his eyes with such an intense, comical expression of delight while holding the juicy piece of meat up to his mouth. We were indoors, likely at home or a friend's place, and through the window behind him, I could see a lovely view of dense green trees and f", "date": "2010-11-28", "page": "https://www.flickr.com/photos/10661932@N00/5220046317/"},
+  {"thumb": "https://farm9.staticflickr.com/8154/6973396064_a57b97690b_q.jpg", "caption": "On April 26th, I caught this funny, candid shot of a woman—perhaps a friend or family member—during a meal out. She's making a wide-eyed, almost surprised face as she's about to take a bite of what looks like a chicken nugget or similar fried food. In front of her, there's an open container of McDonald's fries, a small cup of ketchup, and her black smartphone on the table, all set against the back", "date": "2012-04-26", "page": "https://www.flickr.com/photos/10129939@N08/6973396064/"},
+  {"thumb": "https://farm6.staticflickr.com/5527/9266599322_b1f51d5e93_q.jpg", "caption": "I remember this breathtaking sunset over what looks like a tranquil lake or a very wide river. The sky was just bursting with color, with those dramatic dark clouds streaking across, beautifully lit up by fiery reds, oranges, and yellows right above the horizon. The way those vibrant colors reflected on the rippling surface of the water was absolutely mesmerizing, making the whole scene glow with ", "date": "2013-07-11", "page": "https://www.flickr.com/photos/11271562@N00/9266599322/"},
+  {"thumb": "https://farm1.staticflickr.com/69/205998631_be85413a54_q.jpg", "caption": "My friend and I struck a fun pose, standing back-to-back with our arms crossed and smiling, as we explored a charming city street. The cobblestone path stretched out before us, flanked by beautiful old brick buildings with intricate windows and details. I love how the vibrant pink flowers in the planters added a pop of color to the scene, and you can see a few shops and cafes with outdoor seating ", "date": "2006-08-03", "page": "https://www.flickr.com/photos/12992900@N00/205998631/"},
+  {"thumb": "https://farm7.staticflickr.com/6217/6299963254_302b947979_q.jpg", "caption": "On October 29, 2011, I captured this breathtaking expansive view of lush green mountains and a deep valley, likely while out exploring or hiking. The rolling hills are densely covered with trees and shrubbery, creating a beautiful natural tapestry that stretches far into the distance. The light casts interesting shadows across the slopes and into the valley's crevices, highlighting the rugged terr", "date": "2011-10-29", "page": "https://www.flickr.com/photos/12028361@N00/6299963254/"},
+  {"thumb": "https://farm1.staticflickr.com/181/387259458_594f106894_q.jpg", "caption": "I stopped by an open park area today, which looked like a lively dog park. The sun was casting long shadows, hinting at either early morning or late afternoon, and the ground was covered in wood chips and dirt, perfect for dogs to run around. In the foreground, I focused on the back of a striking black and white dog, wearing a cool white studded collar, looking out towards the activity. Further ba", "date": "2007-02-11", "page": "https://www.flickr.com/photos/12754005@N00/387259458/"},
+  {"thumb": "https://farm6.staticflickr.com/5292/5427776930_44cea723ce_q.jpg", "caption": "It was wonderful to capture this joyful moment with my friends during our hawker center meal! Here, two of my friends are smiling brightly at the camera, looking so happy as they enjoy their food. They're both holding chopsticks, ready to dive into the delicious dishes in front of us, with one plate featuring what looks like a mix of noodles or a vibrant salad. There are also smaller dishes with s", "date": "2011-02-08", "page": "https://www.flickr.com/photos/10204545@N02/5427776930/"},
+  {"thumb": "https://farm1.staticflickr.com/189/463312834_c9f8a89e99_q.jpg", "caption": "I remember this serene moment during my journey through Namibia, sitting with a travel companion on a rocky outcrop, as we watched the sun dip below the horizon over a majestic landscape. The golden light bathed the sky and dramatically silhouetted the distant mountains, while below us, the powerful flow of a river cascaded over multiple falls and rapids. It was a perfect scene of tranquility and ", "date": "2007-03-15", "page": "https://www.flickr.com/photos/12754005@N00/463312834/"},
+  {"thumb": "https://farm5.staticflickr.com/4040/4359391384_b4996541cf_q.jpg", "caption": "I remember capturing this vibrant street scene on February 11, 2010, while I was exploring the heart of Melbourne. The photo perfectly illustrates the city's blend of historic charm and modern urban development, with its towering contemporary buildings standing alongside more ornate, older structures. In the foreground on the left, an elaborate, crown-topped lamppost, possibly part of a bridge or ", "date": "2010-02-11", "page": "https://www.flickr.com/photos/10191539@N03/4359391384/"},
+  {"thumb": "https://farm4.staticflickr.com/3734/10914533764_e9ef6a1d48_q.jpg", "caption": "I loved capturing this sweet family portrait of my friends (or family members) with their children! The dad is holding their adorable baby, who's looking right at the camera with wide eyes, while their older son and daughter are smiling brightly. The mom has her arm around the son, making it a truly heartwarming group shot of the whole family. They're all standing happily in front of a lovely bric", "date": "2013-04-21", "page": "https://www.flickr.com/photos/11271562@N00/10914533764/"},
+  {"thumb": "https://farm5.staticflickr.com/4003/4641325153_67e1a2985f_q.jpg", "caption": "I captured this lovely moment right after the ceremony, or perhaps as we were leaving the church, where the radiant bride and dapper groom shared a sweet kiss. The bride looks stunning in her white strapless gown and veil, holding a beautiful bouquet with purple flowers and a charming silver horseshoe. The groom is very sharp in his black tailcoat and green tie. Standing nearby, smiling, are the a", "date": "2010-05-22", "page": "https://www.flickr.com/photos/13544852@N04/4641325153/"},
+  {"thumb": "https://farm3.staticflickr.com/2720/4197421002_41e5e7e70a_q.jpg", "caption": "I remember this festive dinner party on December 19, 2009. We were seated at a long table, which had a beautiful glittery silver Christmas tree decoration right in front of us. On my left, a woman was focused on her meal, while the man next to her seemed to be deep in thought, perhaps listening intently to a conversation. The man across from me, wearing glasses, was smiling, looking towards someth", "date": "2009-12-19", "page": "https://www.flickr.com/photos/10661932@N00/4197421002/"},
+  {"thumb": "https://farm8.staticflickr.com/7427/8729933319_84110e172a_q.jpg", "caption": "I remember this wonderful, intimate moment, gathered with friends around a birthday cake that was absolutely glowing with candles. The room was dark, creating this magical ambiance where the light from the flames just illuminated everyone's happy faces. My friends are all smiling and laughing, completely engrossed in the festive atmosphere and the warmth of the moment. It was such a joyous occasio", "date": "2013-05-11", "page": "https://www.flickr.com/photos/24965986@N00/8729933319/"},
+  {"thumb": "https://farm9.staticflickr.com/8175/8025274672_736cc36b45_q.jpg", "caption": "I was absolutely captivated by this serene sunset view over what looks like a sprawling vineyard. The rows of grapevines stretched out beneath a sky that painted itself with such soft, beautiful colors—a gentle transition from light blue at the top to a warm, peachy orange near the horizon. In the distance, I could make out the silhouettes of rolling hills and mountains, adding to the peaceful gra", "date": "2012-09-25", "page": "https://www.flickr.com/photos/24965986@N00/8025274672/"},
+  {"thumb": "https://farm8.staticflickr.com/7217/7294385690_51c8033ae1_q.jpg", "caption": "I captured this relaxed outdoor meal with friends, possibly breakfast or a coffee break, set on a bright grassy patch. We were gathered around a white oval table, enjoying some food and drinks. On the left, a man with a beard was tidying up something with a green cloth, while another bearded friend across from me in a black t-shirt was focused on his plate. Next to him, a woman with long hair and ", "date": "2012-05-25", "page": "https://www.flickr.com/photos/10357544@N07/7294385690/"},
+  {"thumb": "https://farm8.staticflickr.com/7411/9457862155_b8572e919a_q.jpg", "caption": "I'm on the left, smiling towards the camera, sitting at a table with two friends. We're at what appears to be a cozy restaurant or cafe, enjoying a meal or some drinks. There are plates with food, possibly skewers or grilled items, and glasses on the table covered with a white tablecloth. My friend in the middle is playfully wrapped in a blue and yellow blanket or towel, turning his head, and our ", "date": "2013-08-07", "page": "https://www.flickr.com/photos/14188121@N00/9457862155/"}
+]/*POOL_END*/;
+
+// ─────────────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────────────
+let TASK_NODES = [];     // { photos, task }
+let TASK_ELS = [];
+
+// ─────────────────────────────────────────────────────────────
+// Boot — no fetch needed, pool is embedded.
+// ─────────────────────────────────────────────────────────────
+function boot(){
+  reshuffle();
+  initForm();
+}
+
+function reshuffle(){
+  buildScene();
+  // Note: we deliberately do NOT call renderForm() here, so reshuffling the
+  // example tasks doesn't wipe the user's already-contributed questions.
+}
+
+// Boot-time form init runs once.
+function initForm(){
+  renderForm();
+}
+
+// ─────────────────────────────────────────────────────────────
+// Pick photos for tasks (keyword-matched) and fillers (random)
+// ─────────────────────────────────────────────────────────────
+// For each task pick keyword-matched photos for both:
+//   • userPhotos = the (optional) reference image(s) the user attaches
+//   • aiPhotos   = the photos camroll RETRIEVES from the gallery as the answer
+// Both sets are drawn from the same pool but never overlap.
+function pickTaskPhotos(tasks){
+  const all = PHOTO_POOL.slice();
+  if (!all.length) return tasks.map(t => ({ task: t, userPhotos: [], aiPhotos: [] }));
+
+  const used = new Set();
+  const pairs = [];
+
+  // Score every unused photo against this task's keywords.
+  function scoreFor(t){
+    const scored = [];
+    for (let i = 0; i < all.length; i++) {
+      if (used.has(i)) continue;
+      const p = all[i];
+      const cap = (p.caption || '').toLowerCase();
+      let score = 0;
+      for (const kw of t.keywords) {
+        if (cap.includes(kw)) score += 2;
+      }
+      score += Math.random() * 0.3; // tie-break shuffle
+      if (score > 0) scored.push({ idx: i, score });
+    }
+    scored.sort((a, b) => b.score - a.score);
+    return scored.map(s => s.idx);
+  }
+  function topUpRandom(picks, want){
+    if (picks.length >= want) return picks;
+    const free = [];
+    for (let i = 0; i < all.length; i++) {
+      if (!used.has(i) && !picks.includes(i)) free.push(i);
+    }
+    for (let i = free.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [free[i], free[j]] = [free[j], free[i]];
+    }
+    while (picks.length < want && free.length) picks.push(free.shift());
+    return picks;
+  }
+
+  tasks.forEach(t => {
+    const wantUser = Math.max(0, t.nUserImages || 0);
+    const wantAi   = Math.max(1, t.nAiImages   || 1);
+
+    // Pick the user's reference photo(s) first (just take the top match)
+    let userPicks = [];
+    if (wantUser > 0) {
+      const ranked = scoreFor(t);
+      userPicks = ranked.slice(0, wantUser);
+      userPicks.forEach(i => used.add(i));
+    }
+
+    // Then pick AI-retrieved photos from what's left (keyword-matched).
+    let aiPicks = scoreFor(t).slice(0, wantAi);
+    aiPicks = topUpRandom(aiPicks, wantAi);
+    aiPicks.forEach(i => used.add(i));
+
+    pairs.push({
+      task: t,
+      userPhotos: userPicks.map(i => all[i]),
+      aiPhotos:   aiPicks.map(i => all[i]),
+    });
+  });
+
+  return pairs;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Build the chat thread of example conversations from other users.
+// Each "turn" is a user message (avatar + name + image attachments
+// + question text) followed by an AI reply bubble — like ChatGPT/Claude.
+// ─────────────────────────────────────────────────────────────
+function buildScene(){
+  TASK_NODES = []; TASK_ELS = [];
+
+  // 6 example conversations — long enough to feel like a real thread,
+  // short enough to scan quickly before contributing.
+  const shuffled = EXAMPLE_TASKS.slice().sort(() => Math.random() - 0.5);
+  const chosenTasks = shuffled.slice(0, 6);
+  const pairs = pickTaskPhotos(chosenTasks);
+
+  pairs.forEach((pr) => {
+    // We need at least the AI retrieval photos; user photos are optional.
+    if (!pr.aiPhotos || !pr.aiPhotos.length) return;
+    TASK_NODES.push({
+      task: pr.task,
+      userPhotos: pr.userPhotos,
+      aiPhotos: pr.aiPhotos,
+    });
+  });
+
+  const inner = document.getElementById('thread-inner');
+  // Wipe just the example turns, preserve any "you" turns the user already added.
+  inner.querySelectorAll('.turn.example').forEach(el => el.remove());
+
+  // Build each example turn and prepend (so user contributions stay at bottom)
+  const frag = document.createDocumentFragment();
+  TASK_NODES.forEach((n, i) => {
+    const turn = renderExampleTurn(n.task, n.userPhotos, n.aiPhotos);
+    turn.style.animationDelay = (i * 60) + 'ms';
+    frag.appendChild(turn);
+    TASK_ELS.push(turn);
+  });
+  // Insert before any "you" turns so examples come first chronologically.
+  const firstYou = inner.querySelector('.turn.you');
+  if (firstYou) inner.insertBefore(frag, firstYou);
+  else inner.appendChild(frag);
+
+  // Auto-scroll to top so the user starts at the beginning of the "thread"
+  const thread = document.getElementById('thread');
+  if (thread) thread.scrollTop = 0;
+}
+
+// Build one full conversation turn: user message + AI reply
+//   userPhotos → optional reference image(s) the user sent (small attachments)
+//   aiPhotos   → photos camroll retrieved as the answer (shown ON the AI bubble)
+function renderExampleTurn(task, userPhotos, aiPhotos){
+  const turn = document.createElement('div');
+  turn.className = 'turn example';
+
+  turn.appendChild(renderUserMsg({
+    name: task.name,
+    text: task.text,
+    photos: userPhotos,
+  }));
+  turn.appendChild(renderAiMsg(task.aiReply, aiPhotos));
+
+  return turn;
+}
+
+// User message row: avatar (initials, color from name) + name + attachments + text
+function renderUserMsg({ name, text, photos, isYou }){
+  const msg = document.createElement('div');
+  msg.className = 'msg user';
+
+  const av = document.createElement('div');
+  av.className = 'avatar';
+  if (isYou) {
+    // Use the shared accent token so the "You" avatar matches the
+    // current theme (lime in dark mode, deep green in light mode).
+    av.style.background = 'var(--accent)';
+    av.style.color = 'var(--chip-text)';
+    av.textContent = 'Y';
+  } else {
+    const c = colorForName(name);
+    av.style.background = c.bg;
+    av.textContent = initialsFromName(name);
+  }
+  msg.appendChild(av);
+
+  const body = document.createElement('div');
+  body.className = 'body';
+
+  const who = document.createElement('div');
+  who.className = 'who';
+  who.textContent = isYou ? 'You' : name;
+  if (isYou) {
+    const tag = document.createElement('span');
+    tag.className = 'you-tag';
+    tag.textContent = '· your contribution';
+    who.appendChild(tag);
+  }
+  body.appendChild(who);
+
+  if (photos && photos.length){
+    const att = document.createElement('div');
+    att.className = 'attachments n-' + photos.length;
+    photos.forEach(p => {
+      const a = document.createElement('div');
+      a.className = 'attachment';
+      const img = document.createElement('img');
+      img.loading = 'lazy';
+      img.src = p.thumb;
+      img.alt = '';
+      img.onerror = () => { img.style.opacity = '0.15'; };
+      a.appendChild(img);
+      a.onclick = () => { if (p.page) window.open(p.page, '_blank', 'noopener'); };
+      att.appendChild(a);
+    });
+    body.appendChild(att);
+  }
+
+  const tx = document.createElement('div');
+  tx.className = 'text';
+  tx.textContent = text;
+  body.appendChild(tx);
+
+  msg.appendChild(body);
+  return msg;
+}
+
+// AI reply row. Optionally renders retrieved photos under the reply text,
+// styled like a "search result" gallery (with a subtle "from your gallery" tag).
+function renderAiMsg(text, retrievedPhotos){
+  const msg = document.createElement('div');
+  msg.className = 'msg ai';
+
+  const av = document.createElement('div');
+  av.className = 'avatar';
+  av.textContent = '✦';
+  msg.appendChild(av);
+
+  const body = document.createElement('div');
+  body.className = 'body';
+
+  const who = document.createElement('div');
+  who.className = 'who';
+  who.textContent = 'camroll';
+  body.appendChild(who);
+
+  const tx = document.createElement('div');
+  tx.className = 'text';
+  tx.textContent = text;
+  body.appendChild(tx);
+
+  if (retrievedPhotos && retrievedPhotos.length){
+    const tag = document.createElement('div');
+    tag.className = 'retrieved-tag';
+    tag.innerHTML = `<span class="dot">●</span> retrieved from your gallery · ${retrievedPhotos.length} photo${retrievedPhotos.length > 1 ? 's' : ''}`;
+    body.appendChild(tag);
+
+    const att = document.createElement('div');
+    att.className = 'attachments retrieved n-' + retrievedPhotos.length;
+    retrievedPhotos.forEach(p => {
+      const a = document.createElement('div');
+      a.className = 'attachment';
+      const img = document.createElement('img');
+      img.loading = 'lazy';
+      img.src = p.thumb;
+      img.alt = '';
+      img.onerror = () => { img.style.opacity = '0.15'; };
+      a.appendChild(img);
+      a.onclick = () => { if (p.page) window.open(p.page, '_blank', 'noopener'); };
+      att.appendChild(a);
+    });
+    body.appendChild(att);
+  }
+
+  msg.appendChild(body);
+  return msg;
+}
+
+// ─────────────────────────────────────────────────────────────
+// FORM — chat-bar style. Each typed question gets sent on enter,
+// shown as a bubble above the input, and auto-saved to the sheet.
+// No "why" field. Indicator shows "X / 5 contributed".
+// ─────────────────────────────────────────────────────────────
+let CONTRIB_COUNT = 0;
+
+function renderForm(){
+  // Wipe any previous "you" turns and reset state.
+  const inner = document.getElementById('thread-inner');
+  inner.querySelectorAll('.turn.you').forEach(el => el.remove());
+  CONTRIB_COUNT = 0;
+  updateProgress();
+  const inp = document.getElementById('chat-input');
+  inp.value = '';
+  inp.style.height = 'auto';
+  document.getElementById('send-btn').disabled = true;
+}
+
+function updateProgress(){
+  const txt = document.getElementById('progress-text');
+  const wrap = document.getElementById('contrib-progress');
+  if (CONTRIB_COUNT === 0) {
+    txt.innerHTML = `Please contribute <b>0&nbsp;/&nbsp;${TARGET_QUESTIONS}</b> questions`;
+    wrap.classList.remove('done');
+  } else if (CONTRIB_COUNT < TARGET_QUESTIONS) {
+    txt.innerHTML = `<b>${CONTRIB_COUNT}&nbsp;/&nbsp;${TARGET_QUESTIONS}</b> contributed — keep going!`;
+    wrap.classList.remove('done');
+  } else if (CONTRIB_COUNT === TARGET_QUESTIONS) {
+    txt.innerHTML = `<b>${TARGET_QUESTIONS}&nbsp;/&nbsp;${TARGET_QUESTIONS}</b> — thank you! more is welcome ❤`;
+    wrap.classList.add('done');
+  } else {
+    txt.innerHTML = `<b>${CONTRIB_COUNT}</b> contributed — you're amazing ❤`;
+    wrap.classList.add('done');
+  }
+}
+
+// Playful rotating phrases — feels alive, like Claude / Cursor agents do.
+const SAVING_PHRASES = [
+  'Babbomming…',
+  'Noting it down…',
+  'Tucking this into memory…',
+  'Capturing your idea…',
+  'Logging your thought…',
+  'Filing this away…',
+  'One sec…',
+  'Beep boop — recording…',
+];
+const SAVED_PHRASES = [
+  'Gotcha! 🎯  Question saved.',
+  'Saved! Thank you so much. ❤',
+  'Boom — locked in. 💾',
+  'Got it! Appreciate you contributing.',
+  'Noted! That\'s a great one. ✨',
+  'Saved — keep \'em coming!',
+  'Done! ✓  Your idea is in.',
+  'Captured. 🙌 Thanks for sharing!',
+];
+function pickRandom(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
+
+// Append a "You" turn to the chat thread (no images attached, since
+// the user is asking the question, not the AI). Returns the turn element
+// so we can mark it saved later.
+function addContribBubble(text){
+  CONTRIB_COUNT += 1;
+  const inner = document.getElementById('thread-inner');
+
+  const turn = document.createElement('div');
+  turn.className = 'turn you pending';
+  turn.appendChild(renderUserMsg({
+    name: 'You',
+    text: text,
+    photos: null,
+    isYou: true,
+  }));
+
+  // Optimistic playful "saving…" placeholder with animated typing dots.
+  const ai = renderAiMsg('');
+  ai.classList.add('saving-msg');
+  const txEl = ai.querySelector('.text');
+  if (txEl) {
+    const phrase = document.createElement('span');
+    phrase.className = 'saving-phrase';
+    phrase.textContent = pickRandom(SAVING_PHRASES);
+    txEl.appendChild(phrase);
+    const dots = document.createElement('span');
+    dots.className = 'typing-dots';
+    dots.innerHTML = '<span></span><span></span><span></span>';
+    txEl.appendChild(dots);
+  }
+  turn.appendChild(ai);
+
+  inner.appendChild(turn);
+
+  // Smoothly scroll the thread to the new turn.
+  const thread = document.getElementById('thread');
+  if (thread) thread.scrollTop = thread.scrollHeight;
+
+  updateProgress();
+  return turn;
+}
+
+function markBubbleSaved(turn){
+  turn.classList.remove('pending');
+  turn.classList.add('saved');
+  const txEl = turn.querySelector('.saving-msg .text');
+  if (txEl) {
+    txEl.innerHTML = '';
+    const span = document.createElement('span');
+    span.className = 'saved-text';
+    span.textContent = pickRandom(SAVED_PHRASES);
+    txEl.appendChild(span);
+  }
+  // Pop a small green "saved" chip next to the user's name.
+  const who = turn.querySelector('.msg.user .who');
+  if (who && !who.querySelector('.saved-chip')) {
+    const chip = document.createElement('span');
+    chip.className = 'saved-chip';
+    chip.textContent = '✓ saved';
+    who.appendChild(chip);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// SAVE  → log to Google Sheet (same endpoint as camroll_demo.html)
+// ─────────────────────────────────────────────────────────────
+const LOG_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwiQLx3kQjNeG5J-7fu5Cpf1za5WZC7fvPKoNmVDFPEOL_kQr3wX7R0Chnz4yXrBTf7/exec';
+const SESSION_ID = (crypto.randomUUID ? crypto.randomUUID()
+  : String(Date.now()) + '-' + Math.random().toString(36).slice(2));
+
+function logOne(payload){
+  if (!LOG_ENDPOINT) return Promise.resolve();
+  try {
+    return fetch(LOG_ENDPOINT, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload),
+    }).catch(() => {});
+  } catch (_) {
+    return Promise.resolve();
+  }
+}
+
+async function sendQuestion(text){
+  text = (text || '').trim();
+  if (!text) return;
+  const bub = addContribBubble(text);
+  const submittedAt = new Date().toISOString();
+  await logOne({
+    question: `[collection] Q${CONTRIB_COUNT}: ${text}`,
+    user: null,
+    session_id: SESSION_ID,
+    page_url: location.href,
+    ua: navigator.userAgent,
+    kind: 'question_collection',
+    q_idx: CONTRIB_COUNT,
+    q_text: text,
+    submitted_at: submittedAt,
+  });
+  // Mark saved as soon as the log request finishes — the green ✓
+  // is a truthful signal that the question made it to the sheet.
+  markBubbleSaved(bub);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Chat-bar wiring
+// ─────────────────────────────────────────────────────────────
+const inp = document.getElementById('chat-input');
+const sendBtn = document.getElementById('send-btn');
+
+inp.addEventListener('input', () => {
+  sendBtn.disabled = !inp.value.trim();
+  inp.style.height = 'auto';
+  inp.style.height = Math.min(inp.scrollHeight, 120) + 'px';
+});
+inp.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    submitFromInput();
+  }
+});
+sendBtn.addEventListener('click', submitFromInput);
+
+function submitFromInput(){
+  const v = inp.value.trim();
+  if (!v) return;
+  sendQuestion(v);
+  inp.value = '';
+  inp.style.height = 'auto';
+  sendBtn.disabled = true;
+  inp.focus();
+}
+
+// ─────────────────────────────────────────────────────────────
+// utils
+// ─────────────────────────────────────────────────────────────
+function escapeHtml(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+let toastTimer = null;
+function toast(msg, isErr){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  if (isErr) el.style.borderColor = '#e0a0a0';
+  else el.style.borderColor = '';
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+// Warn before leaving if there's text in the input the user hasn't sent yet.
+window.addEventListener('beforeunload', e => {
+  const cur = (inp.value || '').trim();
+  if (cur.length > 0) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+boot();
+</script>
+</body>
+</html>
