@@ -79,7 +79,7 @@ body{
   transition:background 0.18s, color 0.18s;
 }
 
-/* ── CHAT THREAD — styled like ChatGPT / Claude ─────────────── */
+/* ── CHAT THREAD — single centered column, ChatGPT/Claude-style ─ */
 .thread{
   position:fixed;
   top:54px;          /* flush directly under the 54px header bar */
@@ -94,27 +94,431 @@ body{
 .thread::-webkit-scrollbar-thumb:hover{ background:var(--border-strong); }
 
 .thread-inner{
-  max-width:740px;
+  max-width:920px;
   margin:0 auto;
   padding:18px 20px 24px;
   display:flex; flex-direction:column;
   gap:10px;
 }
 
-/* A grouping ("turn") = one user message + one AI reply. Subtle separator
-   between turns so the eye can parse where one conversation ends and the
-   next begins. */
-.turn{
-  display:flex; flex-direction:column;
-  gap:14px;
-  padding:14px 0 18px;
-  border-bottom:1px solid var(--border);
-  animation:turn-in .35s ease-out both;
+/* ── CAMERA-ROLL FOLDER CHIP — sits in a turn's gutter (left or right)
+   It's a small rectangular "folder" shape with a tab on top, a photo
+   count badge, and (during search) a riffling stack of thumbnails
+   peeking out of it. The matched answer photos visually fly out of
+   here and land in the AI bubble in the centre column. */
+.folder-row{
+  display:flex; flex-direction:column; align-items:center; gap:6px;
+  font-family:'DM Sans', sans-serif;
+  width:100%;
+  text-align:center;
 }
-.turn:last-child{ border-bottom:none; }
+.folder-chip{
+  position:relative;
+  width:78px; height:62px;
+  flex-shrink:0;
+  border-radius:5px 8px 6px 6px;
+  background:linear-gradient(180deg, var(--bg-elev-2) 0%, var(--bg-elev-3) 100%);
+  border:1px solid var(--border-strong);
+  box-shadow:0 2px 6px var(--shadow);
+  cursor:pointer;        /* clickable to inspect the actual photos */
+  transition:transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+.folder-chip:hover{
+  transform:translateY(-2px);
+  border-color:var(--accent-ring);
+  box-shadow:0 6px 18px var(--shadow), 0 0 0 2px var(--accent-tint);
+}
+/* Subtle "click to open" affordance — only shown on hover, on the chip
+   itself, so the visitor knows the folder isn't just decorative. */
+.folder-chip .open-hint{
+  position:absolute;
+  inset:0;
+  display:flex; align-items:center; justify-content:center;
+  font-size:9.5px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase;
+  color:var(--accent-text);
+  background:var(--hover-overlay-bg, rgba(0,0,0,0.55));
+  opacity:0;
+  pointer-events:none;
+  border-radius:5px 8px 6px 6px;
+  transition:opacity 0.15s;
+  z-index:6;
+}
+.folder-chip:hover .open-hint{ opacity:1; }
+/* Don't flash the hint while the search animation is running — it would
+   fight with the riffling stack. */
+.folder-row.searching .folder-chip .open-hint{ opacity:0 !important; }
+/* The folder's "tab" on top */
+.folder-chip::before{
+  content:'';
+  position:absolute;
+  top:-7px; left:6px;
+  width:30px; height:9px;
+  border-radius:5px 5px 0 0;
+  background:linear-gradient(180deg, var(--bg-elev-2) 0%, var(--bg-elev-3) 100%);
+  border:1px solid var(--border-strong);
+  border-bottom:none;
+}
+/* Soft inner highlight at the top of the folder body */
+.folder-chip::after{
+  content:'';
+  position:absolute;
+  top:0; left:0; right:0;
+  height:9px;
+  background:linear-gradient(180deg, rgba(255,255,255,0.06), transparent);
+  border-radius:5px 8px 0 0;
+  pointer-events:none;
+}
+
+/* Photo count badge ("📷 412") at the bottom-right of the folder */
+.folder-count{
+  position:absolute;
+  right:5px; bottom:4px;
+  font-size:10px; font-weight:600;
+  color:var(--text-mid);
+  background:var(--bg-elev);
+  border:1px solid var(--border);
+  padding:1px 5px; border-radius:8px;
+  letter-spacing:0.02em;
+  z-index:5;
+  pointer-events:none;
+}
+
+/* The little label below the folder ("Sarah's camera roll · connected") */
+.folder-label{
+  display:flex; flex-direction:column; gap:2px;
+  align-items:center;
+  min-width:0; max-width:100%;
+}
+.folder-label .fl-name{
+  font-size:11.5px; font-weight:500; color:var(--text-soft);
+  letter-spacing:0.01em;
+  text-align:center;
+  line-height:1.25;
+  /* Allow the name to wrap to 2 lines so longer names fit in the gutter. */
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+  max-width:100px;
+}
+.folder-label .fl-status{
+  font-size:10.5px; color:var(--text-faint);
+  letter-spacing:0.04em;
+  display:inline-flex; align-items:center; gap:5px;
+}
+.folder-label .fl-status .fdot{
+  width:5px; height:5px; border-radius:50%;
+  background:var(--accent);
+  box-shadow:0 0 6px var(--accent-glow);
+  opacity:0.85;
+}
+.folder-row.searching .fl-status{ color:var(--accent-text); }
+.folder-row.searching .fl-status .fdot{
+  background:var(--accent);
+  box-shadow:0 0 7px var(--accent-glow);
+  animation:pdot-pulse 1.1s ease-in-out infinite;
+}
+.folder-row.done .fl-status{ color:var(--accent-text); }
+.folder-row.done .fl-status .fdot{ background:var(--accent); }
+
+/* When searching, the folder visibly "lifts" and gets a green ring */
+.folder-row.searching .folder-chip,
+.folder-row.done .folder-chip{
+  border-color:var(--accent-ring);
+  box-shadow:0 4px 14px var(--shadow), 0 0 0 2px var(--accent-tint);
+}
+.folder-row.searching .folder-chip{
+  transform:translateY(-2px);
+  animation:folder-jiggle 0.9s ease-in-out infinite;
+}
+@keyframes folder-jiggle{
+  0%, 100% { transform:translateY(-2px) rotate(-0.6deg); }
+  50%      { transform:translateY(-3px) rotate(0.6deg); }
+}
+
+/* IDLE MOSAIC — at rest the folder shows 4 preview thumbs from the
+   YFCC user as a 2×2 grid peeking out, like a Mac Finder folder
+   preview. We hide it the moment .searching is toggled so the riffle
+   stack can take over. */
+.folder-mosaic{
+  position:absolute;
+  inset:5px 5px 5px 5px;
+  border-radius:3px;
+  overflow:hidden;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  grid-template-rows:1fr 1fr;
+  gap:1px;
+  background:var(--bg-elev-3);
+  pointer-events:none;
+  transition:opacity 0.2s;
+  z-index:2;
+}
+.folder-mosaic .fm-cell{
+  background:var(--bg-elev-3);
+  overflow:hidden;
+  position:relative;
+}
+.folder-mosaic .fm-cell img{
+  width:100%; height:100%;
+  object-fit:cover; display:block;
+}
+/* During search the mosaic fades out and the riffle stack takes over. */
+.folder-row.searching .folder-mosaic{
+  opacity:0;
+}
+/* When done, fade the mosaic back in (the riffle cards are wiped by JS). */
+.folder-row.done .folder-mosaic{
+  opacity:1;
+}
+
+/* RIFFLE STACK — the thumbnails that flip past inside the folder
+   while the agent is searching. We stack 3 absolutely-positioned
+   thumbs slightly inset from the folder body and swap their src
+   rapidly from JS. The "top" card slides off to the side each beat. */
+.folder-stack{
+  position:absolute;
+  inset:5px 5px 5px 5px;
+  border-radius:3px;
+  overflow:hidden;
+  background:transparent;
+  pointer-events:none;
+  z-index:3;       /* sits above .folder-mosaic during search */
+}
+.folder-stack .stk{
+  position:absolute;
+  inset:0;
+  background:var(--bg-elev-3);
+  border-radius:3px;
+  overflow:hidden;
+  box-shadow:0 1px 2px rgba(0,0,0,0.25);
+  opacity:0;
+  transform:translate3d(0,0,0) rotate(0deg);
+  transition:transform 0.18s ease-out, opacity 0.18s;
+}
+.folder-stack .stk img{
+  width:100%; height:100%; object-fit:cover; display:block;
+}
+/* Three layered cards: back / middle / top. Visible only while searching. */
+.folder-row.searching .folder-stack .stk{ opacity:1; }
+.folder-row.searching .folder-stack .stk.back{
+  transform:translate(2px, 2px) rotate(-3deg);
+}
+.folder-row.searching .folder-stack .stk.mid{
+  transform:translate(-1px, 0) rotate(2deg);
+}
+/* The "top" card flips off in animation; JS toggles the .flip class. */
+.folder-row.searching .folder-stack .stk.top{
+  transform:translate(0, 0) rotate(0deg);
+}
+.folder-stack .stk.top.flip{
+  transform:translate(40px, -8px) rotate(28deg) !important;
+  opacity:0 !important;
+  transition:transform 0.25s ease-in, opacity 0.2s ease-in;
+}
+
+/* Small "scan" line that sweeps across the stack while searching */
+.folder-stack .scan-line{
+  position:absolute; left:0; right:0; top:0;
+  height:14px;
+  background:linear-gradient(180deg,
+    transparent 0%, var(--accent-soft) 50%, transparent 100%);
+  border-top:1px solid var(--accent-ring);
+  border-bottom:1px solid var(--accent-ring);
+  opacity:0;
+  pointer-events:none;
+}
+.folder-row.searching .folder-stack .scan-line{
+  opacity:0.9;
+  animation:folder-sweep 0.95s linear infinite;
+}
+@keyframes folder-sweep{
+  0%   { top:-14px; }
+  100% { top:100%; }
+}
+
+/* Flying photo — a clone of a matched photo that pops out of the folder
+   chip and lands directly in its target slot. We use a SHORT, direct
+   translate (no width/height resize, no big arc) so the motion feels
+   like the photo is being placed straight from the folder. */
+.flying-photo{
+  position:fixed;
+  border-radius:6px;
+  overflow:hidden;
+  z-index:300;
+  pointer-events:none;
+  box-shadow:0 6px 18px var(--shadow), 0 0 12px var(--accent-glow);
+  border:2px solid var(--accent);
+  background:var(--bg-elev-3);
+  transition:transform 0.42s cubic-bezier(0.25, 0.9, 0.35, 1),
+             opacity 0.42s;
+}
+.flying-photo img{ width:100%; height:100%; object-fit:cover; display:block; }
+
+/* A grouping ("turn") = one user message + one AI reply. Each turn
+   is rendered as its own CARD (border + soft bg) with a small header
+   chip on top reading "<speaker> · camera roll session" — this makes
+   the boundary between distinct users in the reel obvious at a glance.
+   Internally we still use a 3-column grid so the user's camera-roll
+   folder chip can live in either the LEFT or RIGHT gutter, connected
+   by an SVG line back to the AI bubble in the centre column. */
+.turn{
+  display:grid;
+  /* Camera-roll chip lives in the LEFT gutter; messages occupy the
+     remaining width. The right gutter is hidden (see below) so the
+     card is tight on the right edge with no dead whitespace. */
+  grid-template-columns: 110px minmax(0, 1fr);
+  column-gap:14px;
+  row-gap:14px;
+  padding:36px 18px 24px 14px; /* extra top for absolute header chip; comfy right edge */
+  margin-bottom:18px;
+  /* Cap card width and centre it in the thread so messages have a
+     comfortable line-length even on wide screens. */
+  max-width:760px;
+  margin-left:auto;
+  margin-right:auto;
+  background:var(--bg-elev);
+  border:1px solid var(--border);
+  border-radius:14px;
+  box-shadow:0 1px 0 var(--shadow-soft, transparent);
+  animation:turn-in .35s ease-out both;
+  position:relative;
+}
+.turn:last-child{ margin-bottom:0; }
+/* Subtle accent on the active turn so the eye knows what's playing. */
+.turn.searching{
+  border-color:var(--accent-soft);
+  box-shadow:0 0 0 2px var(--accent-tint);
+}
+
+/* Card header chip — sits on the top edge of the card, displays the
+   speaker's name + a "camera roll session" subtitle so visitors can
+   tell whose chat they're looking at. JS populates .turn-header-name
+   and .turn-header-meta during materializeFolderChip / skeleton. */
+.turn-header{
+  position:absolute;
+  top:-12px; left:18px;
+  display:inline-flex; align-items:center; gap:8px;
+  padding:4px 12px 4px 6px;
+  background:var(--bg-elev-2);
+  border:1px solid var(--border-strong);
+  border-radius:999px;
+  font-family:'DM Sans', sans-serif;
+  font-size:11.5px;
+  letter-spacing:0.02em;
+  color:var(--text-soft);
+  z-index:3;
+  box-shadow:0 2px 6px var(--shadow);
+}
+.turn-header .th-av{
+  width:20px; height:20px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:9.5px; font-weight:700; color:#fff;
+  letter-spacing:0;
+  flex-shrink:0;
+}
+.turn-header .th-name{ font-weight:600; color:var(--text); }
+.turn-header .th-sep{ color:var(--text-ghost); }
+.turn-header .th-meta{ color:var(--text-dim); }
+/* "You" turns get a distinct accent-colored header chip. */
+.turn.you .turn-header{
+  border-color:var(--accent-soft);
+  background:var(--accent-tint);
+  color:var(--accent-text);
+}
+.turn.you .turn-header .th-name{ color:var(--accent-text); }
 @keyframes turn-in{
   from { opacity:0; transform:translateY(6px); }
   to   { opacity:1; transform:translateY(0); }
+}
+/* Centre column hosts both messages; gutters are populated optionally. */
+.turn-msgs{
+  grid-column: 2;
+  display:flex; flex-direction:column; gap:14px;
+  min-width:0;
+}
+/* Gutter content is BOTTOM-aligned so the camera-roll icon sits BELOW
+   the AI ("camroll") reply, not way up next to the user's question.
+   This visually says "this answer is powered by THIS camera roll". */
+.turn-gutter{
+  display:flex; align-items:flex-end; justify-content:center;
+  padding-bottom:14px;
+  position:relative;
+  z-index:2;
+}
+.turn-gutter.left  { grid-column:1; }
+/* Right gutter is intentionally hidden — every camera-roll chip lives
+   on the LEFT for visual consistency. Kept in the DOM so legacy code
+   paths that query `.turn-gutter.right` don't break. */
+.turn-gutter.right { display:none; }
+/* When the chip first arrives (right when the AI thinking bubble shows),
+   slide+fade it in from below so it feels like the camera roll is being
+   "tapped" to power the answer. */
+@keyframes folder-arrive{
+  from { opacity:0; transform:translateY(14px) scale(0.94); }
+  to   { opacity:1; transform:translateY(0)    scale(1); }
+}
+.turn-gutter > .folder-row.just-arrived{
+  animation:folder-arrive 0.42s ease-out both;
+}
+
+/* SVG layer for the chip → AI bubble connecting line. Absolutely
+   positioned to fill the whole .turn so we can compute coords against
+   the .turn's local rect. Pointer-events disabled so it doesn't block
+   clicks on either the chip or the bubble. */
+.turn-link-svg{
+  position:absolute;
+  inset:0;
+  width:100%; height:100%;
+  pointer-events:none;
+  z-index:1;            /* below gutters (z:2) and message column */
+  overflow:visible;
+}
+.turn-link-svg .link-path{
+  fill:none;
+  stroke:var(--border-strong);
+  stroke-width:1.2;
+  stroke-dasharray:4 4;
+  opacity:0.35;
+  transition:stroke 0.25s, opacity 0.25s, stroke-width 0.25s;
+}
+.turn.searching .turn-link-svg .link-path{
+  stroke:var(--accent);
+  stroke-width:1.5;
+  opacity:0.9;
+  filter:drop-shadow(0 0 4px var(--accent-glow));
+}
+.turn.done .turn-link-svg .link-path{
+  stroke:var(--accent);
+  opacity:0.55;
+}
+
+/* "You" turns from the visitor don't have a camera-roll gutter — just
+   the centred message column. */
+.turn.you .turn-msgs{ grid-column: 1 / -1; }
+
+/* On narrow screens the gutters disappear and the folder falls back
+   to sitting just below the user message, like before. */
+@media (max-width: 720px){
+  .turn{
+    grid-template-columns: 1fr;
+    column-gap:0;
+    padding:32px 12px 18px;
+  }
+  .turn-msgs{ grid-column:1; }
+  .turn-gutter{
+    grid-column:1;
+    padding-top:0;
+    justify-content:flex-start;
+    padding-left:42px;   /* sit under the user avatar visually */
+  }
+  .turn-header{
+    left:12px;
+    font-size:11px;
+  }
+  /* No gutters → no meaningful coordinates → hide the SVG link layer */
+  .turn-link-svg{ display:none; }
 }
 
 /* A single chat message row: avatar on the left, content on the right */
@@ -152,6 +556,18 @@ body{
   color:var(--text-mid);
   white-space:pre-wrap;
   word-wrap:break-word;
+}
+/* The "why" line below a user's question — italic, muted, with a
+   subtle left border so it reads as a thought / aside, not a new
+   question. Mirrors the Question + Explanation pattern from the
+   user-study template. */
+.msg .user-why{
+  font-size:13px; line-height:1.5;
+  color:var(--text-dim);
+  font-style:italic;
+  padding:2px 0 2px 10px;
+  border-left:2px solid var(--border-strong);
+  margin-top:-2px;
 }
 
 /* AI assistant row — slightly muted text and a marker dot for the model name */
@@ -213,23 +629,72 @@ body{
 }
 
 /* AI-side retrieved gallery — slightly larger thumbs and tighter grid
-   so it reads as a "search result" not a user upload */
+   so it reads as a "search result" not a user upload. Each thumb fades
+   in (it's the "landing" of a flying photo from the album pane). */
 .attachments.retrieved{
   margin-top:8px;
   gap:5px;
 }
 .attachments.retrieved .attachment{
-  width:144px; height:144px;
+  width:118px; height:118px;
   border-radius:8px;
+  border:1px solid var(--accent-soft);
+  animation:retrieved-in 0.35s ease-out both;
+}
+.attachments.retrieved.n-1 .attachment{ width:230px; height:160px; }
+.attachments.retrieved.n-2 .attachment{ width:150px; height:150px; }
+@keyframes retrieved-in{
+  from { opacity:0; transform:scale(0.85); }
+  to   { opacity:1; transform:scale(1); }
+}
+@media (max-width: 760px){
+  .attachments.retrieved .attachment{ width:96px; height:96px; }
+  .attachments.retrieved.n-1 .attachment{ width:200px; height:140px; }
+  .attachments.retrieved.n-2 .attachment{ width:130px; height:130px; }
+}
+
+/* USER-SIDE ATTACHED IMAGES — these are reference images the user
+   uploaded with their question (NOT retrieved from their roll). Styled
+   distinctly from .retrieved so the visitor reads "here's what I'm
+   sending in" vs "here's what the agent found". Neutral border, paper-
+   clip chip, slightly smaller thumbs than the retrieved strip. */
+.attached-tag{
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:11.5px; letter-spacing:0.02em;
+  color:var(--text-dim);
+  margin-top:6px;
+  padding:3px 9px;
+  background:var(--bg-elev);
   border:1px solid var(--border);
+  border-radius:14px;
+  width:fit-content;
 }
-.attachments.retrieved.n-1 .attachment{ width:280px; height:180px; }
-.attachments.retrieved.n-2 .attachment{ width:170px; height:170px; }
-@media (max-width: 560px){
-  .attachments.retrieved .attachment{ width:104px; height:104px; }
-  .attachments.retrieved.n-1 .attachment{ width:220px; height:150px; }
-  .attachments.retrieved.n-2 .attachment{ width:140px; height:140px; }
+.attached-tag .aclip{ font-size:11px; opacity:0.8; }
+.attachments.attached{
+  margin-top:6px;
+  gap:5px;
 }
+.attachments.attached .attachment{
+  width:96px; height:96px;
+  border-radius:7px;
+  border:1px dashed var(--border-strong);
+  background:var(--bg-elev);
+  position:relative;
+}
+.attachments.attached.n-1 .attachment{ width:170px; height:130px; }
+.attachments.attached.n-2 .attachment{ width:130px; height:130px; }
+@media (max-width: 760px){
+  .attachments.attached .attachment{ width:84px; height:84px; }
+  .attachments.attached.n-1 .attachment{ width:160px; height:120px; }
+}
+
+/* Generic fade+rise — used by attached refs as they appear after the
+   user's text streams in, and by visitor pre-send thumbs. */
+@keyframes fade-rise{
+  from { opacity:0; transform:translateY(8px) scale(0.94); }
+  to   { opacity:1; transform:translateY(0)   scale(1); }
+}
+.fade-in{ animation:fade-rise 0.32s ease-out both; }
 
 /* ── HEADER — slim top bar across the whole page ────────────── */
 .header{
@@ -318,6 +783,44 @@ body{
   100% { opacity:1; transform:translateY(0) scale(1); }
 }
 
+/* When a user message text is still "being typed", we render only the
+   typing-dots inside the placeholder. */
+.msg .text.placeholder{
+  color:var(--text-faint);
+  display:inline-flex; align-items:center;
+  min-height:18px;
+}
+
+/* Streaming caret — a thin blinking bar that follows the text as it
+   gets typed/streamed in. Removed (.streaming class dropped) when done. */
+.msg .text.streaming::after{
+  content:'';
+  display:inline-block;
+  width:7px; height:1em;
+  background:var(--accent);
+  margin-left:2px;
+  vertical-align:-2px;
+  animation:caret-blink 0.9s steps(2, end) infinite;
+  border-radius:1px;
+  box-shadow:0 0 6px var(--accent-glow);
+}
+.msg.user .text.streaming::after{
+  background:var(--text-soft);
+  box-shadow:none;
+}
+@keyframes caret-blink{ 0%, 49% { opacity:1; } 50%, 100% { opacity:0; } }
+
+/* AI "thinking…" placeholder bubble used while the album is being searched */
+.thinking-msg .text{
+  display:inline-flex; align-items:center; gap:8px;
+  color:var(--text-soft);
+  font-style:italic;
+}
+.thinking-label{
+  font-size:13.5px; color:var(--accent-text);
+  letter-spacing:0.02em;
+}
+
 /* Animated typing dots ("●●●") that play while the reply is pending */
 .typing-dots{
   display:inline-flex; gap:3px; align-items:center;
@@ -381,10 +884,116 @@ body{
   background:var(--bg-elev);
   border:1px solid var(--border);
   border-radius:18px;
-  padding:9px 9px 9px 16px;
+  padding:9px 9px 9px 12px;
   backdrop-filter:blur(14px);
   box-shadow:0 14px 40px var(--shadow);
   transition:border-color .15s, box-shadow .15s;
+}
+/* ＋ attach-images button on the LEFT side of the chatbar */
+.attach-btn{
+  width:34px; height:34px; border-radius:10px;
+  background:transparent;
+  color:var(--text-soft);
+  border:1px solid var(--border);
+  font-size:18px; font-weight:600; line-height:1;
+  cursor:pointer; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  transition:background .15s, color .15s, border-color .15s, transform .1s;
+}
+.attach-btn:hover{
+  background:var(--accent-tint);
+  color:var(--accent-text);
+  border-color:var(--accent-soft);
+}
+.attach-btn:active{ transform:scale(.94); }
+
+/* Strip of pre-send attachments shown ABOVE the chatbar */
+.attach-strip{
+  display:flex; flex-wrap:wrap; gap:8px;
+  padding:8px;
+  margin-bottom:8px;
+  background:var(--bg-elev);
+  border:1px solid var(--border);
+  border-radius:14px;
+  backdrop-filter:blur(14px);
+}
+.attach-strip[hidden]{ display:none; }
+.attach-thumb{
+  position:relative;
+  width:64px; height:64px;
+  border-radius:8px;
+  border:1px dashed var(--border-strong);
+  background:var(--bg-elev-2);
+  overflow:hidden;
+}
+.attach-thumb img{
+  width:100%; height:100%;
+  object-fit:cover; display:block;
+}
+.attach-thumb .attach-x{
+  position:absolute; top:2px; right:2px;
+  width:18px; height:18px;
+  border-radius:50%;
+  background:rgba(0,0,0,0.65);
+  color:#fff; border:none;
+  font-size:13px; line-height:1;
+  cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  padding:0;
+}
+.attach-thumb .attach-x:hover{ background:rgba(0,0,0,0.85); }
+
+/* Drag-over state for full-page drop target */
+body.drag-over .chatbar{
+  border-color:var(--accent-ring);
+  box-shadow:0 14px 40px var(--shadow), 0 0 0 3px var(--accent-tint);
+}
+
+/* Full-page overlay shown while the user is dragging image files over
+   the page. Pointer-events stay on so it can also receive the drop event
+   if the user lets go anywhere (not just on the chatbar). */
+.drop-overlay{
+  position:fixed; inset:0;
+  z-index:400;
+  display:none;
+  align-items:center; justify-content:center;
+  background:color-mix(in srgb, var(--bg) 70%, transparent);
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+  animation:drop-fade .14s ease-out;
+}
+.drop-overlay.show{ display:flex; }
+@keyframes drop-fade{
+  from { opacity:0; }
+  to   { opacity:1; }
+}
+.drop-card{
+  pointer-events:none;        /* the card itself doesn't intercept the drop */
+  display:flex; flex-direction:column; align-items:center; gap:10px;
+  padding:38px 56px;
+  background:var(--bg-elev);
+  border:2px dashed var(--accent-ring);
+  border-radius:18px;
+  color:var(--text);
+  font-family:'DM Sans', sans-serif;
+  box-shadow:0 18px 60px var(--shadow);
+  transform:scale(.96);
+  animation:drop-pop .22s cubic-bezier(.2,.9,.3,1.2) both;
+}
+@keyframes drop-pop{
+  from { transform:scale(.92); opacity:.4; }
+  to   { transform:scale(1);   opacity:1; }
+}
+.drop-icon{ font-size:42px; line-height:1; }
+.drop-title{
+  font-size:18px; font-weight:600;
+  letter-spacing:0.01em;
+  color:var(--text);
+}
+.drop-sub{
+  font-size:13px;
+  color:var(--text-dim);
+  letter-spacing:0.02em;
 }
 .chatbar:focus-within{
   border-color:var(--accent-ring);
@@ -442,6 +1051,161 @@ body{
   backdrop-filter:blur(8px);
 }
 .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); pointer-events:auto; }
+
+/* ── CAMERA-ROLL MODAL — opens when a visitor clicks a folder chip ──
+   It's a centred panel with a header (avatar + name + "X photos"
+   + close button) and a scrollable chronological grid of thumbnails,
+   month-grouped, mirroring the look of camroll_dataviewer.html. The
+   actual data comes from a real YFCC user (deterministically picked
+   per fictional name) so visitors see what an honest camera roll
+   looks like. */
+.crm-overlay{
+  position:fixed; inset:0;
+  background:var(--lb-bg, rgba(0,0,0,0.78));
+  backdrop-filter:blur(6px);
+  z-index:400;
+  display:none;
+  align-items:center; justify-content:center;
+  padding:2.5rem 2rem;
+}
+.crm-overlay.open{ display:flex; animation:crm-in 0.22s ease-out; }
+@keyframes crm-in{ from{opacity:0} to{opacity:1} }
+
+.crm-panel{
+  width:100%; max-width:980px;
+  height:min(82vh, 760px);
+  background:var(--bg);
+  border:1px solid var(--border);
+  border-radius:14px;
+  box-shadow:0 24px 80px rgba(0,0,0,0.55);
+  display:flex; flex-direction:column;
+  overflow:hidden;
+  animation:crm-pop 0.28s cubic-bezier(0.2, 0.9, 0.3, 1) both;
+}
+@keyframes crm-pop{
+  from { opacity:0; transform:translateY(14px) scale(0.97); }
+  to   { opacity:1; transform:translateY(0)    scale(1); }
+}
+
+.crm-header{
+  display:flex; align-items:center; gap:14px;
+  padding:14px 18px;
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+  background:var(--bg-elev);
+}
+.crm-av{
+  width:38px; height:38px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:13px; font-weight:600; color:#fff;
+  flex-shrink:0;
+}
+.crm-meta{ display:flex; flex-direction:column; gap:2px; min-width:0; flex:1; }
+.crm-name{
+  font-size:16px; font-weight:500; color:var(--text);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.crm-name strong{ color:var(--accent-text); font-weight:600; }
+.crm-sub{
+  font-size:12.5px; color:var(--text-dim);
+  letter-spacing:0.02em;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.crm-close{
+  background:none; border:1px solid var(--border); border-radius:8px;
+  color:var(--text-soft); cursor:pointer;
+  width:34px; height:34px; flex-shrink:0;
+  font-size:18px; line-height:1;
+  display:inline-flex; align-items:center; justify-content:center;
+  transition:all 0.15s;
+}
+.crm-close:hover{ color:var(--text); border-color:var(--border-strong); background:var(--bg-elev-2); }
+
+/* Photo grid scroller */
+.crm-scroll{
+  flex:1; overflow-y:auto; overflow-x:hidden;
+  padding:6px 18px 22px;
+  position:relative;
+}
+.crm-scroll::-webkit-scrollbar{ width:8px; }
+.crm-scroll::-webkit-scrollbar-thumb{ background:var(--scrollbar); border-radius:4px; }
+.crm-scroll::-webkit-scrollbar-thumb:hover{ background:var(--border-strong); }
+
+.crm-event{ margin-bottom:4px; }
+.crm-event-label{
+  font-size:13.5px; font-weight:500; color:var(--text-mid);
+  padding:14px 0 6px;
+  position:sticky; top:0;
+  background:var(--bg);
+  z-index:2;
+}
+.crm-row{
+  display:grid;
+  grid-template-columns:repeat(6, 1fr);
+  gap:3px;
+}
+@media (max-width:840px){ .crm-row{ grid-template-columns:repeat(5, 1fr); } }
+@media (max-width:640px){ .crm-row{ grid-template-columns:repeat(4, 1fr); } }
+.crm-thumb{
+  aspect-ratio:1; overflow:hidden;
+  background:var(--bg-elev-2);
+  border-radius:2px;
+  cursor:pointer;
+  transition:opacity 0.12s;
+}
+.crm-thumb:hover{ opacity:0.85; }
+.crm-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+.crm-thumb img.broken{ opacity:0.1; }
+
+.crm-loading, .crm-error{
+  display:flex; align-items:center; justify-content:center;
+  height:100%; min-height:200px;
+  color:var(--text-faint); font-size:13px; letter-spacing:0.04em;
+}
+.crm-error{ color:#c87060; }
+
+/* Floating date pill while scrolling, mirrors the dataviewer */
+.crm-scroll-date{
+  position:absolute;
+  top:50%; right:12px;
+  transform:translateY(-50%);
+  background:var(--bg-elev);
+  border:1px solid var(--border-strong);
+  border-radius:14px;
+  padding:6px 12px;
+  font-size:13px; font-weight:500;
+  color:var(--text);
+  letter-spacing:0.04em;
+  pointer-events:none;
+  opacity:0;
+  transition:opacity 0.18s;
+  z-index:5;
+  box-shadow:0 4px 16px var(--shadow);
+  white-space:nowrap;
+}
+.crm-scroll-date.show{ opacity:1; }
+
+/* Tiny lightbox layered on top of the modal when a thumb is clicked */
+.crm-lb{
+  position:fixed; inset:0; z-index:500;
+  background:rgba(0,0,0,0.92);
+  display:none; align-items:center; justify-content:center;
+  padding:2rem;
+}
+.crm-lb.open{ display:flex; animation:crm-in 0.18s ease-out; }
+.crm-lb img{
+  max-width:90vw; max-height:88vh;
+  border-radius:6px;
+  box-shadow:0 12px 40px rgba(0,0,0,0.6);
+  background:#000;
+}
+.crm-lb-close{
+  position:absolute; top:1.25rem; right:1.5rem;
+  font-size:26px; color:#cbc7bd;
+  cursor:pointer; background:none; border:none;
+  transition:color 0.15s;
+}
+.crm-lb-close:hover{ color:#fff; }
 </style>
 </head>
 <body>
@@ -449,14 +1213,17 @@ body{
 <!-- Slim top header bar -->
 <div class="header">
   <span class="title">camroll · <strong>question collection</strong></span>
-  <span class="sub">What would you ask an AI that remembers everything in your photo gallery? Browse the examples, then type your own below ↓</span>
-  <button class="refresh-btn" onclick="reshuffle()" title="Show different examples">↻ shuffle</button>
+  <span class="sub">camroll connects to your camera roll and answers questions about it — see how it works below, then ask your own ↓</span>
+  <button class="refresh-btn" onclick="reshuffle()" title="Show 3 different example conversations">↻ shuffle examples</button>
   <button class="theme-toggle" title="Toggle theme" onclick="toggleTheme()">
     <span class="icon-dark">☀</span><span class="icon-light">☾</span>
   </button>
 </div>
 
-<!-- Chat thread of example conversations from other users -->
+<!-- Single chat thread. Each example user's question carries a small
+     "📁 album folder" chip beside it — the search animation plays
+     INSIDE that chip and the matched photos fly out of it into the AI
+     reply below. -->
 <div class="thread" id="thread">
   <div class="thread-inner" id="thread-inner"></div>
 </div>
@@ -466,12 +1233,28 @@ body{
     <span class="pdot"></span>
     <span id="progress-text">Please contribute <b>0&nbsp;/&nbsp;5</b> questions</span>
   </div>
+  <!-- Strip of thumbs for images the visitor has attached but not yet sent.
+       Hidden until at least one image is selected. -->
+  <div class="attach-strip" id="attach-strip" hidden></div>
   <div class="chatbar">
+    <button id="attach-btn" class="attach-btn" type="button"
+            title="Attach reference images (optional)">＋</button>
+    <input id="attach-input" type="file" accept="image/*" multiple hidden>
     <textarea id="chat-input" rows="1"
-      placeholder="Type a question you'd ask the AI about your camera roll…"></textarea>
+      placeholder="What would you ask an AI about your personal camera roll?"></textarea>
     <button id="send-btn" disabled title="Send (Enter)">↑</button>
   </div>
-  <div class="chat-hint">Enter to send · Shift + Enter for newline · auto-saved on send</div>
+  <div class="chat-hint">Enter to send · Shift + Enter for newline · ＋ / drag / paste to attach images · auto-saved on send</div>
+</div>
+
+<!-- Full-page drop-zone overlay shown while dragging image files anywhere
+     on the page. Lives outside .chatbar-wrap so it sits above everything. -->
+<div class="drop-overlay" id="drop-overlay" aria-hidden="true">
+  <div class="drop-card">
+    <div class="drop-icon">📎</div>
+    <div class="drop-title">Drop images to attach</div>
+    <div class="drop-sub">They'll be added to your next question</div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -494,101 +1277,216 @@ function toggleTheme() {
 // ─────────────────────────────────────────────────────────────
 const NUM_QUESTIONS = 5;
 
-// Example chats from "other users". Each entry renders as a full chat turn:
-//   • user message (avatar + name + question text + (optional) reference photo
-//     they uploaded as context — usually 0 or 1)
-//   • camroll AI reply bubble below — text + the photos camroll RETRIEVED
-//     from their gallery as the answer (this is the "memory" superpower)
+// ─────────────────────────────────────────────────────────────
+// EXAMPLE_TASKS — the conversations played in the auto-reel.
 //
-//   nUserImages → how many photos the user attached as context (0 or 1)
-//   nAiImages   → how many photos camroll retrieves as the answer
-//   keywords    → for picking matching photos from the embedded pool
+// 👋 To add YOUR OWN example, just push a new entry to this list.
+//    (You don't need to touch any other code — the sequencer, animations,
+//    and per-card layout pick it up automatically.)
+//
+// Schema for each entry:
+//   category    'episodic'  → personal, time/place-anchored memory
+//                             ("what was my wife wearing on Liam's birthday?",
+//                              "what restaurant did I go to last Saturday?")
+//               'semantic'  → generalisations / preferences across the gallery
+//                             ("what should I eat tonight?",
+//                              "suggest a gift based on mom's hobbies")
+//               'creative'  → action / synthesis on top of memory
+//                             ("turn my NZ trip into a travel diary",
+//                              "find every photo of my dog from this angle")
+//   text        the user's question (in their own voice — be specific!)
+//   why         a 1-sentence explanation of why they want AI to do it
+//               (rendered as italic sub-text under the question — this
+//                mirrors the "Explanation" field from the user-study
+//                template so the example feels grounded.)
+//   aiReply     the camroll agent's answer — should READ as if it has
+//               actually retrieved + summarised the photos (cite dates,
+//               counts, scenes; don't stay generic).
+//   keywords    used to pick semantically-relevant thumbs from the
+//               embedded PHOTO_POOL for both the answer + (if any) the
+//               user's attached reference images.
+//   nUserImages how many reference photos the user attaches (0–3).
+//               Use > 0 only when the question REQUIRES sending images
+//               (e.g. "find more like THIS").
+//   nAiImages   how many photos camroll retrieves as part of its answer.
+//               Set to 0 if the answer is pure text (a fact, a date).
+//
+// The 8 examples sourced verbatim from Template.pdf are tagged with
+// `[from template]` so reviewers can recognise them.
+// ─────────────────────────────────────────────────────────────
 const TARGET_QUESTIONS = 5;
 const EXAMPLE_TASKS = [
+  // ── EPISODIC — recall a specific event/person/place from the past ──
   {
+    // [from template — Sarah K.]
+    category: 'episodic',
     name: 'Sarah K.',
-    text: 'Pick the happiest photo of me and my younger brother together at home — I\'ll send it to him for his birthday.',
-    aiReply: 'Found 17 photos of you two at home together. Here\'s the one with the strongest "happy" signal — both of you mid-laugh in the kitchen, Aug 2022. Want me to send it to him directly?',
+    text: 'Choose the happiest photo of me and my younger brother together at home.',
+    why: 'Some were taken at home, some weren\'t — I don\'t want to manually sort the home ones and pick the best, I want AI to do it for me.',
+    aiReply: 'Of the 312 photos you have with your brother, 84 were taken at home. Ranking those for genuine smiles + eye contact: the strongest match is you two mid-laugh in the kitchen, Aug 14, 2022. Here are the top 3 candidates:',
     keywords:['friends', 'smile', 'home', 'indoor', 'kitchen', 'group', 'people', 'portrait', 'selfie'],
-    nUserImages: 0, nAiImages: 1,
+    nUserImages: 0, nAiImages: 3,
   },
   {
-    name: 'Marcus T.',
-    text: 'Turn my trip to New Zealand into a day-by-day travel diary.',
-    aiReply: 'Detected your NZ trip: Mar 14–28, 2023, 412 photos across 9 locations. Here\'s a preview of the cover photos for the first few days — drafting the full 14-day diary now.',
-    keywords:['travel', 'trip', 'mountain', 'landscape', 'lake', 'hiking', 'forest', 'sunset', 'nature'],
-    nUserImages: 0, nAiImages: 4,
-  },
-  {
-    name: 'Priya R.',
-    text: 'My friend just sent me this — she says we\'ve been here before. I don\'t remember it. When did I go?',
-    aiReply: 'Yes — you visited on Apr 19, 2019 around 3pm. That\'s a café on Carrer dels Sombrerers in Barcelona. Here\'s the matching photo from your gallery that day:',
-    keywords:['street', 'building', 'city', 'cafe', 'restaurant', 'park', 'bridge', 'church', 'plaza'],
-    nUserImages: 1, nAiImages: 1,
-  },
-  {
+    // [from template — David L.]
+    category: 'episodic',
     name: 'David L.',
-    text: 'What was my wife wearing on Liam\'s birthday last year?',
-    aiReply: 'On Liam\'s birthday (May 4, 2024) she\'s in 23 of the 81 photos from that day. Morning: navy linen dress with white sneakers. Evening: cream blouse for dinner. Showing both:',
+    text: 'What was my wife wearing on my child\'s birthday last year?',
+    why: 'Without AI I\'d have to find that day, scroll through every photo, and pick out only the ones with my wife in them — way too tedious.',
+    aiReply: 'Liam\'s birthday was May 4, 2024 — 81 photos that day, your wife is in 23 of them. Two distinct outfits: navy linen dress with white sneakers in the morning, cream silk blouse + dark jeans for the dinner. Showing one of each:',
     keywords:['birthday', 'cake', 'family', 'wife', 'kid', 'child', 'party', 'gift'],
     nUserImages: 0, nAiImages: 2,
   },
   {
-    name: 'Aiko M.',
-    text: 'What should I eat tonight? Recommend something I usually enjoy — I\'m feeling indecisive.',
-    aiReply: 'You photograph ramen, pasta, and warm noodle soups the most (~38% of food shots). Given tonight\'s cool weather, I\'d suggest tonkotsu — here are a few of your favorites from past visits:',
-    keywords:['food', 'restaurant', 'meal', 'lunch', 'dinner', 'noodle', 'pasta', 'pizza', 'plate', 'coffee'],
-    nUserImages: 0, nAiImages: 4,
-  },
-  {
-    name: 'Tomás G.',
-    text: 'I forgot to take a photo at this place when I was there — can you edit me into one?',
-    aiReply: 'Got it! I found your visit: Sept 12, 2022, late afternoon. Using a recent solo photo of you in similar lighting — here\'s the location photo I\'ll work with as the base:',
-    keywords:['landmark', 'monument', 'view', 'tower', 'statue', 'museum', 'church', 'plaza'],
+    // [from template — Priya R.]
+    category: 'episodic',
+    name: 'Priya R.',
+    text: 'My friend sent me this picture and said we had been here before. I don\'t remember it — can you look through my gallery and tell me where it is and when I went?',
+    why: 'I want AI to use my own photos to identify the place and the date, instead of me trying to remember a trip from years ago.',
+    aiReply: 'I matched your friend\'s photo against your library — same café terrace appears in 4 of your photos from a Barcelona trip, Apr 17–22, 2019. You were at Caelum on Carrer de la Palla, around 3pm on Apr 19, 2019. Here\'s your shot from that exact spot:',
+    keywords:['street', 'building', 'city', 'cafe', 'restaurant', 'park', 'bridge', 'church', 'plaza'],
     nUserImages: 1, nAiImages: 1,
   },
   {
+    category: 'episodic',
+    name: 'Ben C.',
+    text: 'What restaurant did I go to last Saturday and what did I order?',
+    why: 'I want to recommend it to a friend but I genuinely cannot remember the name — the location + the dishes are sitting in my photos somewhere.',
+    aiReply: 'Last Saturday (Nov 9) you were at Tartine Manufactory on Alabama St, ~7:15pm. Photos from that night show: ricotta gnocchi, a little gem salad, and a shared slice of chocolate-hazelnut cake. Receipts from your screenshots confirm the venue. Showing the dishes:',
+    keywords:['restaurant', 'food', 'menu', 'dinner', 'meal', 'plate', 'drink', 'coffee'],
+    nUserImages: 0, nAiImages: 2,
+  },
+
+  // ── SEMANTIC — preferences / patterns / advice from the whole gallery ──
+  {
+    // [from template — "what should I eat tonight"]
+    category: 'semantic',
+    name: 'Aiko M.',
+    text: 'What should I eat tonight? Help me choose something I like.',
+    why: 'I have lots of food photos and I want AI to learn my taste from them — I especially love noodles, so noodle suggestions would be great.',
+    aiReply: 'Across your last 6 months of food photos: ramen + soba + udon make up ~38% of all food shots, the most of any category. Given tonight\'s 11°C drizzle, I\'d suggest tonkotsu. Three ramen places you\'ve photographed and rated 4★+ before:',
+    keywords:['food', 'restaurant', 'meal', 'lunch', 'dinner', 'noodle', 'pasta', 'pizza', 'plate', 'coffee'],
+    nUserImages: 0, nAiImages: 3,
+  },
+  {
+    // [from template — Elena V., carpet]
+    category: 'semantic',
+    name: 'Elena V.',
+    text: 'I think the carpet in our living room looks ugly — can you recommend a more suitable color?',
+    why: 'I have plenty of living-room photos already on my phone — I\'d rather AI analyse them than me having to manually find and forward them.',
+    aiReply: 'I pulled 12 living-room photos. Dominant tones: warm white walls, oak floors (#a17a4d), cream linen sofa, brass accents. Your current beige carpet washes out against the sofa. A muted sage (#7c8a6a) or a deep terracotta (#a45a3a) rug would create much better contrast — here\'s the room photo I analysed:',
+    keywords:['home', 'living room', 'indoor', 'sofa', 'couch', 'kitchen', 'wall', 'interior'],
+    nUserImages: 0, nAiImages: 1,
+  },
+  {
+    category: 'semantic',
+    name: 'Noah F.',
+    text: 'Suggest a birthday gift for my mom based on her hobbies in my photos.',
+    why: 'I take a lot of photos when I\'m visiting her — I want AI to pick up on what she actually spends time on, not what I think she likes.',
+    aiReply: 'Across 4 years of photos with your mom: gardening appears in 47 (mostly succulents + roses), watercolour painting in 12 (recently — started this year), trail walks in 28. Two thoughtful gifts that match: a quality pair of bypass pruners, OR a hand-bound watercolour travel sketchbook. Here\'s what I matched on:',
+    keywords:['mom', 'family', 'flower', 'garden', 'craft', 'home', 'portrait', 'smile'],
+    nUserImages: 0, nAiImages: 2,
+  },
+
+  // ── CREATIVE — synthesise / generate / act on top of memory ──
+  {
+    // [from template — Marcus T., NZ trip diary]
+    category: 'creative',
+    name: 'Marcus T.',
+    text: 'Based on my photo gallery, help me turn my trip to New Zealand into a day-by-day travel diary.',
+    why: 'I want AI to identify that time period, understand my itinerary day by day, and generate the diary — going through every photo myself would take hours.',
+    aiReply: 'Detected your NZ trip: Mar 14 – Mar 28, 2023 (15 days, 412 photos, 9 locations from Auckland → Rotorua → Wellington → Queenstown → Milford Sound). Drafting the full 14-day diary now — here are the cover photos I picked for the first 4 days:',
+    keywords:['travel', 'trip', 'mountain', 'landscape', 'lake', 'hiking', 'forest', 'sunset', 'nature'],
+    nUserImages: 0, nAiImages: 4,
+  },
+  {
+    // [from template — Tomás G., Monkland]
+    category: 'creative',
+    name: 'Tomás G.',
+    text: 'I went to Monkland and forgot to take a photo there — can you edit a photo of me into it?',
+    why: 'I want AI to find photos from when I was actually there and insert me into one, using a real photo of myself for accuracy.',
+    aiReply: 'Found your Monkland visit: Sept 12, 2022, 4:30–6pm. You\'ve got 18 location shots from that afternoon but none with you in them. I\'ll use this scene photo as the base + your selfie from the same lighting (golden hour) for the composite. Showing the source pair:',
+    keywords:['landmark', 'monument', 'view', 'tower', 'statue', 'museum', 'church', 'plaza'],
+    nUserImages: 0, nAiImages: 2,
+  },
+  {
+    // [from template — Hannah B., dog from this angle]
+    category: 'creative',
     name: 'Hannah B.',
-    text: 'Find every photo of my dog from this exact angle — head-on, looking up.',
-    aiReply: 'Found 11 photos of Maple looking up at you. Here are the top 3 by sharpness — the most recent is from last Sunday\'s morning walk:',
+    text: 'Help me find all photos of my dog taken from this angle — head-on, looking up.',
+    why: 'My dog loves having his head patted and I want every shot from that angle in one place — going through them one by one is too much.',
+    aiReply: 'Found 11 photos of Maple looking straight up at the camera. Top 3 by sharpness — the most recent is from last Sunday\'s morning walk on Fillmore. Want me to bundle them as a single album?',
     keywords:['dog', 'cat', 'pet', 'animal', 'puppy', 'kitten', 'paws', 'fur'],
     nUserImages: 1, nAiImages: 3,
   },
   {
+    category: 'creative',
     name: 'Jules P.',
-    text: 'Make me a slideshow of the best 10 sunset photos from last year.',
-    aiReply: 'You have 87 sunset photos from 2024. Here\'s a preview of the 4 strongest — picked for color contrast and unique locations. Building the 60-second slideshow now.',
+    text: 'Make me a 60-second slideshow of my best 10 sunset photos from last year.',
+    why: 'I want a year-end recap to send my family — picking 10 best out of dozens manually would take all evening.',
+    aiReply: 'You have 87 sunset photos from 2024 across 14 distinct locations. Picked 10 by colour-contrast + uniqueness of location (no two from the same beach). Building the 60-second slideshow at 6s per photo. Here\'s a preview of 4 of the strongest:',
     keywords:['sunset', 'sky', 'sun', 'evening', 'horizon', 'clouds', 'orange', 'landscape'],
     nUserImages: 0, nAiImages: 4,
   },
   {
+    category: 'creative',
     name: 'Mei W.',
-    text: 'Pick the 5 best photos from Anna\'s wedding to send to her.',
-    aiReply: 'From Anna\'s wedding (June 8, 2024) — here are 4 of my top picks: ceremony exit, first dance, cake-cutting close-up, and the candid of her laughing with her dad.',
+    text: 'Pick the 5 best photos from Anna\'s wedding to send to her as a thank-you.',
+    why: 'I shot ~600 photos that day — Anna doesn\'t want all of them, she wants the highlights. I want AI to pick the moments that matter.',
+    aiReply: 'Anna\'s wedding: June 8, 2024 — 614 photos between 2pm and 11pm. My top 5 by emotion + composition + uniqueness: ceremony exit (4:12pm), first dance close-up, cake cutting laugh, candid with her dad before the toast, final-song crowd shot. Showing the first 4:',
     keywords:['wedding', 'bride', 'groom', 'church', 'cake', 'dress', 'reception', 'ceremony'],
     nUserImages: 0, nAiImages: 4,
   },
+
+  // ── EXAMPLES WITH USER-ATTACHED REFERENCE IMAGES ──
+  // These show the "search by example image" pattern — visually obvious
+  // because the user bubble has an attached-photos strip.
   {
-    name: 'Noah F.',
-    text: 'Suggest a birthday gift for my mom based on her hobbies in my photos.',
-    aiReply: 'Your mom appears most often gardening (47 photos), with watercolor brushes (12), and on long hikes (28). Here\'s what I noticed — quality pruning shears or a hiking-friendly sketchbook would suit her well.',
-    keywords:['mom', 'family', 'flower', 'garden', 'craft', 'home', 'portrait', 'smile'],
-    nUserImages: 0, nAiImages: 2,
+    category: 'creative',
+    name: 'Lina A.',
+    text: 'Here are a couple of dress styles I love — find similar outfits I already own from my own photos.',
+    why: 'Before shopping for new clothes I want to know what I already have that looks like this — I want AI to match against my own wardrobe in photos.',
+    aiReply: 'Both references are flowy midi dresses in warm earth tones. From your own photos I found 14 outfits with the same silhouette + palette — neutral linen, no prints, hem just below the knee. Here are the closest 4:',
+    keywords:['dress', 'outfit', 'fashion', 'street', 'portrait', 'style', 'clothes'],
+    nUserImages: 2, nAiImages: 4,
   },
   {
-    name: 'Elena V.',
-    text: 'The carpet in our living room looks dated — recommend a more suitable color based on the rest of the room.',
-    aiReply: 'Your living room has warm oak floors, a cream linen sofa, and brass accents. Here\'s the photo I analyzed — a muted sage green or deep terracotta rug would complement the tones much better than the current beige.',
-    keywords:['home', 'living room', 'indoor', 'sofa', 'couch', 'kitchen', 'wall', 'interior'],
-    nUserImages: 1, nAiImages: 1,
+    category: 'episodic',
+    name: 'Theo R.',
+    text: 'My friend just sent me these — do I have anything similar from the same trip?',
+    why: 'I want to find shots from the same locations on my own roll so I can reply with mine — I don\'t remember exactly which days I was where.',
+    aiReply: 'Both photos look like the Amalfi coast — landmark match: the lemon-tree terrace at Villa Cimbrone (Ravello). Your own photos place you there June 12–14, 2023. Here are 3 of yours from the same spots, within 2 days of when your friend\'s were taken:',
+    keywords:['travel', 'coast', 'sea', 'cliff', 'mediterranean', 'sunset', 'beach', 'landscape'],
+    nUserImages: 2, nAiImages: 3,
   },
   {
-    name: 'Ben C.',
-    text: 'What restaurant did I go to last Saturday — and what did I order?',
-    aiReply: 'Saturday Nov 9 — you were at Tartine on Guerrero around 7pm. From your food photos that night: ricotta gnocchi, a side salad, and a shared slice of chocolate cake. Here are the photos:',
-    keywords:['restaurant', 'food', 'menu', 'dinner', 'meal', 'plate', 'drink', 'coffee'],
-    nUserImages: 0, nAiImages: 2,
+    category: 'episodic',
+    name: 'Yuki S.',
+    text: 'This is one of the only photos I have of my late grandfather — can you find any others I might have forgotten about?',
+    why: 'I scanned old photos onto my phone years ago and they\'re not labeled — face matching is the only way I\'ll find him without scrolling for hours.',
+    aiReply: 'I face-matched the reference against your full library — 9 likely matches across 2008–2014, including 2 you\'d never tagged. Confidence ranges from 87% (clear front-facing) to 64% (side profile). Showing the 3 highest-confidence matches:',
+    keywords:['portrait', 'family', 'grandfather', 'old', 'people', 'face', 'home'],
+    nUserImages: 1, nAiImages: 3,
   },
+
+  // ─────────────────────────────────────────────────────────────
+  // 👇  ADD YOUR OWN EXAMPLE HERE  👇
+  //     Just copy any block above, paste it below, and edit the
+  //     fields. Set `category` to 'episodic' | 'semantic' | 'creative',
+  //     fill in `text` (the question) + `why` (the explanation) +
+  //     `aiReply` (a believable retrieved-then-summarised answer).
+  //     Use `nUserImages: 0–3` and `nAiImages: 0–5` to control how
+  //     many photos appear in the user / answer bubbles.
+  // ─────────────────────────────────────────────────────────────
+  // {
+  //   category: 'episodic',           // or 'semantic' / 'creative'
+  //   name:    'Your Name',
+  //   text:    'Your specific question here?',
+  //   why:     'Why you want AI to do this for you.',
+  //   aiReply: 'A believable retrieve-then-summarise answer here.',
+  //   keywords:['food', 'home', 'travel'],   // for picking matching thumbs
+  //   nUserImages: 0, nAiImages: 3,
+  // },
 ];
 
 // Stable color generator from a name string — gives each user a consistent
@@ -705,21 +1603,43 @@ const PHOTO_POOL = /*POOL_START*/[
 // ─────────────────────────────────────────────────────────────
 // State
 // ─────────────────────────────────────────────────────────────
-let TASK_NODES = [];     // { photos, task }
-let TASK_ELS = [];
+//   SCENE             → [{ task, riffle: [photo,…], matched: [photo,…], totalCount: N }]
+//                       riffle  = small sample of thumbs we flip through inside the folder chip
+//                       matched = the actual photos that fly out into the AI reply
+//                       totalCount = the BIG fake "album size" to display on the folder badge
+//   SEQUENCER_RUN_ID  → bump on every reshuffle / reset so in-flight async play loops can bail
+let SCENE = [];
+let SEQUENCER_RUN_ID = 0;
+let CONTRIB_COUNT = 0;
 
 // ─────────────────────────────────────────────────────────────
 // Boot — no fetch needed, pool is embedded.
 // ─────────────────────────────────────────────────────────────
-function boot(){
+async function boot(){
+  // We need the YFCC manifest BEFORE the reel can play, because each
+  // example turn now binds a real YFCC user (their name, preview thumbs,
+  // photoCount) to one of our pre-written tasks. Eager-loading once at
+  // boot keeps the per-turn rendering synchronous afterwards.
+  try {
+    await ensureYfccManifest();
+  } catch (e) {
+    // Soft fallback: still play the reel, but with task names directly
+    // (no real YFCC binding, no clickable albums).
+    console.warn('YFCC manifest failed to load:', e);
+  }
   reshuffle();
   initForm();
 }
 
 function reshuffle(){
+  // Cancel any in-flight playback, then rebuild + replay.
+  SEQUENCER_RUN_ID += 1;
   buildScene();
-  // Note: we deliberately do NOT call renderForm() here, so reshuffling the
-  // example tasks doesn't wipe the user's already-contributed questions.
+  // Wipe just the example turns, keep the visitor's contributions.
+  const inner = document.getElementById('thread-inner');
+  inner.querySelectorAll('.turn.example').forEach(el => el.remove());
+  // Run the auto-play; insert each example turn just before any "you" turns.
+  playSequence(SEQUENCER_RUN_ID);
 }
 
 // Boot-time form init runs once.
@@ -728,142 +1648,785 @@ function initForm(){
 }
 
 // ─────────────────────────────────────────────────────────────
-// Pick photos for tasks (keyword-matched) and fillers (random)
+// Build the SCENE — pick which example tasks to play, and for each
+// pick:
+//   • RIFFLE THUMBS — a small set of distinct thumbnails to flip
+//     through inside the folder chip during the search animation
+//     (purely cosmetic — illustrates "scanning the album").
+//   • MATCHED PHOTOS — the photos that fly out as the AI's answer
+//     (still loosely keyword-matched so they look semantically right).
+// We also pick a fake but believable "total album size" to show on
+// the folder badge (e.g. "📷 412") so the folder feels personal.
 // ─────────────────────────────────────────────────────────────
-// For each task pick keyword-matched photos for both:
-//   • userPhotos = the (optional) reference image(s) the user attaches
-//   • aiPhotos   = the photos camroll RETRIEVES from the gallery as the answer
-// Both sets are drawn from the same pool but never overlap.
-function pickTaskPhotos(tasks){
-  const all = PHOTO_POOL.slice();
-  if (!all.length) return tasks.map(t => ({ task: t, userPhotos: [], aiPhotos: [] }));
+const NUM_EXAMPLES   = 3;     // how many conversations to play in the reel
+const RIFFLE_SAMPLE  = 12;    // how many distinct thumbs to riffle through
 
-  const used = new Set();
-  const pairs = [];
-
-  // Score every unused photo against this task's keywords.
-  function scoreFor(t){
-    const scored = [];
-    for (let i = 0; i < all.length; i++) {
-      if (used.has(i)) continue;
-      const p = all[i];
-      const cap = (p.caption || '').toLowerCase();
-      let score = 0;
-      for (const kw of t.keywords) {
-        if (cap.includes(kw)) score += 2;
-      }
-      score += Math.random() * 0.3; // tie-break shuffle
-      if (score > 0) scored.push({ idx: i, score });
-    }
-    scored.sort((a, b) => b.score - a.score);
-    return scored.map(s => s.idx);
-  }
-  function topUpRandom(picks, want){
-    if (picks.length >= want) return picks;
-    const free = [];
-    for (let i = 0; i < all.length; i++) {
-      if (!used.has(i) && !picks.includes(i)) free.push(i);
-    }
-    for (let i = free.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [free[i], free[j]] = [free[j], free[i]];
-    }
-    while (picks.length < want && free.length) picks.push(free.shift());
-    return picks;
-  }
-
-  tasks.forEach(t => {
-    const wantUser = Math.max(0, t.nUserImages || 0);
-    const wantAi   = Math.max(1, t.nAiImages   || 1);
-
-    // Pick the user's reference photo(s) first (just take the top match)
-    let userPicks = [];
-    if (wantUser > 0) {
-      const ranked = scoreFor(t);
-      userPicks = ranked.slice(0, wantUser);
-      userPicks.forEach(i => used.add(i));
-    }
-
-    // Then pick AI-retrieved photos from what's left (keyword-matched).
-    let aiPicks = scoreFor(t).slice(0, wantAi);
-    aiPicks = topUpRandom(aiPicks, wantAi);
-    aiPicks.forEach(i => used.add(i));
-
-    pairs.push({
-      task: t,
-      userPhotos: userPicks.map(i => all[i]),
-      aiPhotos:   aiPicks.map(i => all[i]),
-    });
-  });
-
-  return pairs;
-}
-
-// ─────────────────────────────────────────────────────────────
-// Build the chat thread of example conversations from other users.
-// Each "turn" is a user message (avatar + name + image attachments
-// + question text) followed by an AI reply bubble — like ChatGPT/Claude.
-// ─────────────────────────────────────────────────────────────
 function buildScene(){
-  TASK_NODES = []; TASK_ELS = [];
+  SCENE = [];
 
-  // 6 example conversations — long enough to feel like a real thread,
-  // short enough to scan quickly before contributing.
+  // Pick a random subset of example tasks for this reel.
   const shuffled = EXAMPLE_TASKS.slice().sort(() => Math.random() - 0.5);
-  const chosenTasks = shuffled.slice(0, 6);
-  const pairs = pickTaskPhotos(chosenTasks);
+  const tasks = shuffled.slice(0, NUM_EXAMPLES);
 
-  pairs.forEach((pr) => {
-    // We need at least the AI retrieval photos; user photos are optional.
-    if (!pr.aiPhotos || !pr.aiPhotos.length) return;
-    TASK_NODES.push({
-      task: pr.task,
-      userPhotos: pr.userPhotos,
-      aiPhotos: pr.aiPhotos,
-    });
+  // Bind each task to a DISTINCT real YFCC user (so the speaker name,
+  // preview thumbs, and clickable album are all the same person). If
+  // the manifest isn't loaded for any reason, fall back to a stub that
+  // looks like the old fictional speaker.
+  const yfccPool = (YFCC_USERS || []).slice().sort(() => Math.random() - 0.5);
+
+  tasks.forEach((task, i) => {
+    const yfcc = yfccPool[i % Math.max(1, yfccPool.length)] || stubYfccFromTask(task);
+    SCENE.push(buildSceneNode(task, yfcc));
   });
-
-  const inner = document.getElementById('thread-inner');
-  // Wipe just the example turns, preserve any "you" turns the user already added.
-  inner.querySelectorAll('.turn.example').forEach(el => el.remove());
-
-  // Build each example turn and prepend (so user contributions stay at bottom)
-  const frag = document.createDocumentFragment();
-  TASK_NODES.forEach((n, i) => {
-    const turn = renderExampleTurn(n.task, n.userPhotos, n.aiPhotos);
-    turn.style.animationDelay = (i * 60) + 'ms';
-    frag.appendChild(turn);
-    TASK_ELS.push(turn);
-  });
-  // Insert before any "you" turns so examples come first chronologically.
-  const firstYou = inner.querySelector('.turn.you');
-  if (firstYou) inner.insertBefore(frag, firstYou);
-  else inner.appendChild(frag);
-
-  // Auto-scroll to top so the user starts at the beginning of the "thread"
-  const thread = document.getElementById('thread');
-  if (thread) thread.scrollTop = 0;
 }
 
-// Build one full conversation turn: user message + AI reply
-//   userPhotos → optional reference image(s) the user sent (small attachments)
-//   aiPhotos   → photos camroll retrieved as the answer (shown ON the AI bubble)
-function renderExampleTurn(task, userPhotos, aiPhotos){
-  const turn = document.createElement('div');
-  turn.className = 'turn example';
-
-  turn.appendChild(renderUserMsg({
+// Fallback used only when yfcc_users.json failed to load.
+function stubYfccFromTask(task){
+  return {
+    id: 'fake_' + task.name.replace(/\W+/g, '_').toLowerCase(),
     name: task.name,
-    text: task.text,
-    photos: userPhotos,
-  }));
-  turn.appendChild(renderAiMsg(task.aiReply, aiPhotos));
+    photoCount: 180 + (nameSeed(task.name) % 720),
+    years: '',
+    avatar: '',
+    preview: [],
+    _stub: true,
+  };
+}
+
+function buildSceneNode(task, yfcc){
+  const all = PHOTO_POOL;
+  if (!all.length) return { task, yfcc, riffle: [], matched: [], totalCount: yfcc.photoCount || 0 };
+
+  const wantMatches = Math.max(1, Math.min(task.nAiImages || 1, 5));
+
+  // Score every photo against the task's keywords for the matched set.
+  const scored = all.map((p, i) => {
+    const cap = (p.caption || '').toLowerCase();
+    let s = 0;
+    for (const kw of task.keywords) if (cap.includes(kw)) s += 2;
+    s += Math.random() * 0.4;
+    return { idx: i, score: s };
+  }).sort((a, b) => b.score - a.score);
+
+  const matchedIdxs = scored.slice(0, wantMatches).map(s => s.idx);
+  const matchedSet = new Set(matchedIdxs);
+
+  // USER-ATTACHED REFERENCE IMAGES — for tasks where nUserImages > 0.
+  // These are the photos the FAKE user is "uploading" to the chat as
+  // context. We pick them from the same keyword pool (so they look
+  // semantically related) but DEDUPED against the matched set so the
+  // refs don't overlap with the AI's answer photos.
+  const wantUser = Math.max(0, Math.min(task.nUserImages || 0, 3));
+  let userIdxs = [];
+  if (wantUser > 0) {
+    userIdxs = scored.slice(wantMatches, wantMatches + wantUser).map(s => s.idx);
+  }
+  const userSet = new Set(userIdxs);
+
+  // Riffle thumbs come from the YFCC user's preview when we have it
+  // (so the search animation flips through HER actual photos). Top up
+  // from PHOTO_POOL if preview is short. Deterministic per YFCC user.
+  const seed = nameSeed(yfcc.name || task.name);
+  const remaining = all.map((_, i) => i)
+    .filter(i => !matchedSet.has(i) && !userSet.has(i));
+  const poolFill = seededShuffle(remaining, seed).slice(0, RIFFLE_SAMPLE);
+  // Build a unified list of {thumb} objects so the riffle code doesn't
+  // care where each thumbnail came from.
+  const previewThumbs = (yfcc.preview || []).map(src => ({ thumb: src }));
+  const fillThumbs    = poolFill.map(i => all[i]);
+  const riffle = previewThumbs.concat(fillThumbs).slice(0, RIFFLE_SAMPLE);
+
+  // Use the YFCC user's REAL photo count for the badge.
+  const totalCount = yfcc.photoCount || (180 + (seed % 720));
+
+  return {
+    task,
+    yfcc,
+    riffle,
+    matched:    matchedIdxs.map(i => all[i]),
+    userPhotos: userIdxs.map(i => all[i]),
+    totalCount,
+  };
+}
+
+// FNV-1a 32-bit on a string → small, stable integer seed.
+function nameSeed(s){
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = (h * 0x01000193) >>> 0;
+  }
+  return h >>> 0;
+}
+// Mulberry32 PRNG seeded from `seed`. Returns a deterministic shuffle of arr.
+function seededShuffle(arr, seed){
+  const a = arr.slice();
+  let t = seed >>> 0;
+  for (let i = a.length - 1; i > 0; i--) {
+    t += 0x6D2B79F5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    const j = (((r ^ (r >>> 14)) >>> 0) % (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// ─────────────────────────────────────────────────────────────
+// TYPEWRITER — animate text being "streamed" into an element word
+// by word, with a blinking caret while it's still streaming. The
+// runId guard lets the sequencer cancel mid-type if the user hits
+// "↻ replay" while we're streaming.
+// ─────────────────────────────────────────────────────────────
+async function streamText(el, text, opts){
+  if (!el) return;
+  opts = opts || {};
+  const wordMs   = opts.wordMs   || 70;   // delay per word
+  const commaMs  = opts.commaMs  || 180;  // extra pause on , ; :
+  const periodMs = opts.periodMs || 340;  // extra pause on . ! ?
+  const runId    = opts.runId;
+  el.textContent = '';
+  el.classList.add('streaming');
+
+  // Tokenise into words but preserve trailing whitespace so spacing
+  // looks natural as each word arrives.
+  const tokens = text.match(/\S+\s*/g) || [text];
+  for (let i = 0; i < tokens.length; i++) {
+    if (runId !== undefined && runId !== SEQUENCER_RUN_ID) {
+      el.textContent = text;
+      el.classList.remove('streaming');
+      return;
+    }
+    el.textContent += tokens[i];
+    if (opts.onTick) opts.onTick();
+    const tail = tokens[i].trim().slice(-1);
+    let delay = wordMs;
+    if (tail === ',' || tail === ';' || tail === ':') delay += commaMs;
+    if (tail === '.' || tail === '!' || tail === '?') delay += periodMs;
+    await sleep(delay);
+  }
+  el.classList.remove('streaming');
+}
+
+// ─────────────────────────────────────────────────────────────
+// SEQUENCER — auto-play the example conversations one at a time.
+// Each step (per turn):
+//   1. Append the user's message + an inline FOLDER CHIP for their album
+//      (typing dots first, then the text + folder slide in).
+//   2. Append a "thinking…" AI bubble; flip the folder into "searching"
+//      mode (it lifts, gets a green ring, riffles through thumbnails,
+//      a scan line sweeps over it).
+//   3. Replace the thinking bubble with the real answer; clone matched
+//      photos out of the folder and fly them into the AI bubble's
+//      retrieved-photos strip.
+//   4. Folder calms down into a "done · N photos" state.
+// ─────────────────────────────────────────────────────────────
+async function playSequence(runId){
+  for (let i = 0; i < SCENE.length; i++) {
+    if (runId !== SEQUENCER_RUN_ID) return;
+    // All folder chips live in the LEFT gutter for visual consistency
+    // (so the eye always knows where the camera roll is).
+    const side = 'left';
+    await playOneTurn(SCENE[i], side, runId);
+    await sleep(900);
+  }
+}
+
+async function playOneTurn(node, side, runId){
+  const { task, riffle, matched, userPhotos } = node;
+
+  // 1. Insert the user turn (gutter is EMPTY for now — chip arrives
+  //    later, with the AI's reply, in the lower position).
+  const turn = createExampleTurnSkeleton(node, side);
+  insertExampleTurn(turn);
+  scrollThreadToBottom();
+  await sleep(50);
+  await sleep(380);
+
+  // Stream the user's question word-by-word so it feels like they're
+  // typing it live, instead of popping in.
+  const userText = turn.querySelector('.msg.user .text');
+  if (userText) {
+    userText.classList.remove('placeholder');
+    userText.innerHTML = '';
+    await streamText(userText, task.text, {
+      wordMs: 55, commaMs: 140, periodMs: 260,
+      runId,
+      onTick: () => { scrollThreadToBottom(); },
+    });
+  }
+  if (runId !== SEQUENCER_RUN_ID) return;
+
+  // 1a. After the question, stream the user's "why" — their explanation
+  //     of why they want AI to do this. This mirrors the user-study
+  //     template (Question + Explanation) and grounds the example.
+  if (task.why) {
+    await sleep(180);
+    await revealUserWhy(turn, task.why, runId);
+  }
+  if (runId !== SEQUENCER_RUN_ID) return;
+
+  // 1b. If the user attached reference images, reveal them AFTER the
+  //     text + why — text first, images second, just like the AI side.
+  if (userPhotos && userPhotos.length) {
+    await sleep(220);
+    revealAttachedPhotos(turn, userPhotos);
+    scrollThreadToBottom();
+    await sleep(520);
+  }
+  if (runId !== SEQUENCER_RUN_ID) return;
+  await sleep(360);
+
+  // 2. Materialize the folder chip in the lower position, append the
+  //    AI "thinking" bubble, then start the folder search animation.
+  const folderRow = materializeFolderChip(turn, node);
+  appendThinkingToTurn(turn);
+  scrollThreadToBottom();
+  await sleep(60);
+  // First chance to draw the chip → AI bubble link.
+  updateTurnLink(turn);
+  turn.classList.add('searching');
+
+  await runFolderSearch(folderRow, riffle, runId);
+  if (runId !== SEQUENCER_RUN_ID) return;
+
+  // 3. Reveal the answer (text first, photos last) + fly photos out.
+  await revealAiAnswer(turn, task, matched, folderRow, runId);
+  if (runId !== SEQUENCER_RUN_ID) return;
+
+  // 4. Folder settles into "done · N photos".
+  if (folderRow) {
+    folderRow.classList.remove('searching');
+    folderRow.classList.add('done');
+    const status = folderRow.querySelector('.fl-status span:last-child');
+    if (status) {
+      status.textContent = 'found ' + matched.length + ' photo' + (matched.length > 1 ? 's' : '');
+    }
+    const stack = folderRow.querySelector('.folder-stack');
+    if (stack) stack.querySelectorAll('.stk').forEach(s => s.style.opacity = '0');
+  }
+  turn.classList.remove('searching');
+  turn.classList.add('done');
+  updateTurnLink(turn);
+}
+
+// Insert an example turn into the thread, BEFORE any "you" contribution turns,
+// so the visitor's questions stay at the bottom of the thread.
+function insertExampleTurn(turn){
+  const inner = document.getElementById('thread-inner');
+  const firstYou = inner.querySelector('.turn.you');
+  if (firstYou) inner.insertBefore(turn, firstYou);
+  else inner.appendChild(turn);
+}
+
+// Build the empty turn skeleton with the 3-column layout:
+//   [ left-gutter | message-column | right-gutter ]
+// The folder-chip is NOT inserted yet — it's materialized later by
+// materializeFolderChip() at the moment the AI 'thinking' bubble
+// appears, so the camera roll only ever shows up in the LOWER position
+// (next to the AI reply), never up by the user's question.
+//
+// The skeleton also includes an absolutely-positioned SVG layer used
+// for the chip → AI bubble connecting line; the line is drawn/updated
+// by updateTurnLink() once both endpoints exist.
+function createExampleTurnSkeleton(node, side){
+  const { task, yfcc } = node;
+  const turn = document.createElement('div');
+  turn.className = 'turn example side-' + side;
+  turn.dataset.side = side;
+
+  // Header chip — labels the whole card with the speaker so visitors
+  // can tell distinct users in the reel apart at a glance.
+  turn.appendChild(buildTurnHeader(yfcc.name || task.name, 'camera roll session'));
+
+  // SVG link layer (absolute, fills the turn). Path is empty until
+  // updateTurnLink() runs after the AI bubble + chip both exist.
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('class', 'turn-link-svg');
+  svg.setAttribute('preserveAspectRatio', 'none');
+  const path = document.createElementNS(svgNS, 'path');
+  path.setAttribute('class', 'link-path');
+  svg.appendChild(path);
+  turn.appendChild(svg);
+
+  // Left gutter — empty placeholder; chip is added later if side === 'left'.
+  const leftG = document.createElement('div');
+  leftG.className = 'turn-gutter left';
+  turn.appendChild(leftG);
+
+  // Message column (centre). The user msg uses the YFCC user's REAL name.
+  // We deliberately pass photos:null so the skeleton starts with text
+  // only — the sequencer will reveal attached refs (if any) AFTER the
+  // user's text finishes streaming, via revealAttachedPhotos().
+  const msgs = document.createElement('div');
+  msgs.className = 'turn-msgs';
+  const userMsg = renderUserMsg({
+    name: yfcc.name || task.name,
+    text: '',
+    photos: null,
+    category: task.category || null,
+  });
+  const txEl = userMsg.querySelector('.text');
+  if (txEl) {
+    txEl.classList.add('placeholder');
+    txEl.innerHTML = '<span class="typing-dots"><span></span><span></span><span></span></span>';
+  }
+  msgs.appendChild(userMsg);
+  turn.appendChild(msgs);
+
+  // Right gutter — empty placeholder; chip is added later if side === 'right'.
+  const rightG = document.createElement('div');
+  rightG.className = 'turn-gutter right';
+  turn.appendChild(rightG);
 
   return turn;
 }
 
+// Build a small "header chip" pinned to the top edge of the turn card
+// — shows the speaker and a short caption so each user's session is
+// visually delimited within the reel.
+function buildTurnHeader(name, meta){
+  const h = document.createElement('div');
+  h.className = 'turn-header';
+  const c = colorForName(name || 'You');
+  h.innerHTML = `
+    <span class="th-av" style="background:${c.bg}">${escapeHtml(initialsFromName(name || 'Y'))}</span>
+    <span class="th-name">${escapeHtml(name || 'You')}</span>
+    <span class="th-sep">·</span>
+    <span class="th-meta">${escapeHtml(meta || '')}</span>
+  `;
+  return h;
+}
+
+// Reveal the user's "why" — a short italic explanation appended below
+// their question text. Mirrors the Question + Explanation pattern from
+// the user-study template so the example feels grounded ("here is why
+// I'd want AI to do this for me"). Streamed in slightly slower so the
+// reader can absorb it.
+async function revealUserWhy(turn, why, runId){
+  if (!turn || !why) return;
+  const userMsg = turn.querySelector('.msg.user');
+  if (!userMsg) return;
+  const body = userMsg.querySelector('.body');
+  const txt  = userMsg.querySelector('.text');
+  if (!body || !txt) return;
+  if (body.querySelector('.user-why')) return;
+
+  const w = document.createElement('div');
+  w.className = 'user-why fade-in';
+  // Insert immediately after the question text.
+  txt.insertAdjacentElement('afterend', w);
+
+  // Stream the why in italic, a touch slower than the question so it
+  // feels like a thoughtful aside.
+  await streamText(w, '— ' + why, {
+    wordMs: 42, commaMs: 100, periodMs: 200,
+    runId,
+    onTick: () => { scrollThreadToBottom(); },
+  });
+}
+
+// Reveal the reference images the FAKE user "attached" to their
+// question. We do this AFTER the text streams in so the order is:
+//   typed question → attached refs → folder lights up → AI reply.
+// Each image fades + slides in with a small stagger so it feels like
+// they're being inserted into the chat one by one.
+function revealAttachedPhotos(turn, photos){
+  if (!turn || !photos || !photos.length) return;
+  const userMsg = turn.querySelector('.msg.user');
+  if (!userMsg || userMsg.querySelector('.attachments.attached')) return;
+  const body = userMsg.querySelector('.body');
+  if (!body) return;
+
+  const tag = document.createElement('div');
+  tag.className = 'attached-tag fade-in';
+  tag.innerHTML = `<span class="aclip">📎</span> attached · ${photos.length} image${photos.length > 1 ? 's' : ''}`;
+  body.appendChild(tag);
+
+  const att = document.createElement('div');
+  att.className = 'attachments attached n-' + photos.length;
+  photos.forEach((p, i) => {
+    const a = document.createElement('div');
+    a.className = 'attachment fade-in';
+    a.style.animationDelay = (80 * i) + 'ms';
+    const img = document.createElement('img');
+    img.loading = 'lazy';
+    img.src = p.thumb || p.dataUrl || p.url;
+    img.alt = p.name || '';
+    img.onerror = () => { img.style.opacity = '0.15'; };
+    a.appendChild(img);
+    if (p.page) a.onclick = () => window.open(p.page, '_blank', 'noopener');
+    att.appendChild(a);
+  });
+  body.appendChild(att);
+}
+
+// Drop the folder chip into its gutter NOW (called when the AI thinking
+// bubble appears, so the chip only ever materializes in the lower
+// position). The chip slides + fades in via the .just-arrived class.
+function materializeFolderChip(turn, node){
+  if (!turn || !node) return null;
+  if (turn.querySelector('.folder-row')) return turn.querySelector('.folder-row');
+  const side = turn.dataset.side || 'left';
+  const gutter = turn.querySelector('.turn-gutter.' + side);
+  if (!gutter) return null;
+  const row = buildFolderChip(node.yfcc, node.totalCount);
+  row.classList.add('just-arrived');
+  gutter.appendChild(row);
+  // Drop the just-arrived class after the slide-in finishes so subsequent
+  // state changes (searching → done) don't replay the slide.
+  setTimeout(() => row.classList.remove('just-arrived'), 600);
+  return row;
+}
+
+// (Re)compute the SVG path between this turn's folder chip and its AI
+// bubble. The path is a smooth cubic Bézier from the chip's INSIDE
+// edge → the AI bubble's INSIDE edge. No-op if either endpoint is
+// missing (e.g. before materializeFolderChip / appendThinkingToTurn).
+function updateTurnLink(turn){
+  if (!turn) return;
+  const svg = turn.querySelector(':scope > .turn-link-svg');
+  const chip = turn.querySelector('.folder-chip');
+  // Prefer the AI bubble; fall back to AI avatar.
+  const target = turn.querySelector('.msg.ai .body')
+              || turn.querySelector('.msg.ai .avatar');
+  if (!svg || !chip || !target) return;
+
+  const turnRect = turn.getBoundingClientRect();
+  if (!turnRect.width) return;
+  svg.setAttribute('viewBox', `0 0 ${turnRect.width} ${turnRect.height}`);
+
+  const isLeft = turn.classList.contains('side-left');
+  const chipRect = chip.getBoundingClientRect();
+  const tgtRect  = target.getBoundingClientRect();
+
+  // Anchor at the chip side facing the centre, vertically near top.
+  const sx = isLeft
+    ? (chipRect.right - turnRect.left)
+    : (chipRect.left  - turnRect.left);
+  const sy = (chipRect.top + chipRect.height * 0.35) - turnRect.top;
+  // Land on the side of the AI bubble facing the chip, near its bottom
+  // (so the line clearly connects the chip BELOW to the answer ABOVE).
+  const tx = isLeft
+    ? (tgtRect.left   - turnRect.left)
+    : (tgtRect.right  - turnRect.left);
+  const ty = (tgtRect.bottom - Math.min(28, tgtRect.height / 2)) - turnRect.top;
+
+  // Smooth cubic bezier with control points biased horizontally.
+  const cx1 = sx + (isLeft ? 50 : -50);
+  const cy1 = sy - 10;
+  const cx2 = tx + (isLeft ? -40 : 40);
+  const cy2 = ty + 6;
+  const d = `M ${sx} ${sy} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${tx} ${ty}`;
+  const path = svg.querySelector('.link-path');
+  if (path) path.setAttribute('d', d);
+}
+
+// Recompute every visible turn's link path. Called on window resize.
+function updateAllTurnLinks(){
+  document.querySelectorAll('.turn.example').forEach(updateTurnLink);
+}
+window.addEventListener('resize', updateAllTurnLinks);
+
+// Build the inline folder chip. AT IDLE, four preview thumbs from the
+// YFCC user are arranged as a 2×2 mosaic peeking out of the folder
+// (Mac-Finder style). DURING SEARCH, the riffle stack takes over and
+// flips through cards. The static folder shape (tab + body) comes from
+// CSS via ::before / ::after.
+function buildFolderChip(yfcc, totalCount){
+  const row = document.createElement('div');
+  row.className = 'folder-row';
+
+  const chip = document.createElement('div');
+  chip.className = 'folder-chip';
+
+  // Static 2×2 mosaic shown at idle (visible whenever .searching is OFF).
+  // Four preview thumbs from the user; if fewer than 4 are available,
+  // the remaining cells stay as the chip's bg colour (looks fine).
+  const mosaic = document.createElement('div');
+  mosaic.className = 'folder-mosaic';
+  const previews = (yfcc.preview || []).slice(0, 4);
+  for (let i = 0; i < 4; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'fm-cell';
+    if (previews[i]) {
+      const img = document.createElement('img');
+      img.src = previews[i];
+      img.loading = 'lazy';
+      img.alt = '';
+      img.onerror = () => { img.style.opacity = '0.1'; };
+      cell.appendChild(img);
+    }
+    mosaic.appendChild(cell);
+  }
+  chip.appendChild(mosaic);
+
+  // Riffle stack — 3 layered cards used DURING the search animation
+  // (CSS only reveals these when .folder-row.searching is set).
+  const stack = document.createElement('div');
+  stack.className = 'folder-stack';
+  ['back', 'mid', 'top'].forEach(cls => {
+    const card = document.createElement('div');
+    card.className = 'stk ' + cls;
+    const img = document.createElement('img');
+    img.alt = '';
+    card.appendChild(img);
+    stack.appendChild(card);
+  });
+  const scan = document.createElement('div');
+  scan.className = 'scan-line';
+  stack.appendChild(scan);
+  chip.appendChild(stack);
+
+  // "📷 412" badge in the bottom-right of the folder.
+  const cnt = document.createElement('div');
+  cnt.className = 'folder-count';
+  cnt.textContent = '📷 ' + (totalCount || 0).toLocaleString();
+  chip.appendChild(cnt);
+
+  // Hover-only "open" hint so visitors know the folder is clickable
+  // (suppressed during search animation by CSS).
+  const hint = document.createElement('div');
+  hint.className = 'open-hint';
+  hint.textContent = 'open ↗';
+  chip.appendChild(hint);
+
+  // Click → open the camera-roll modal for this real YFCC user.
+  chip.title = `Open ${yfcc.name}'s camera roll`;
+  chip.onclick = () => openCameraRoll(yfcc);
+
+  row.appendChild(chip);
+
+  // Label below the folder — uses the YFCC user's REAL name.
+  const label = document.createElement('div');
+  label.className = 'folder-label';
+  label.innerHTML = `
+    <div class="fl-name">${escapeHtml(yfcc.name || '')}'s camera roll</div>
+    <div class="fl-status"><span class="fdot"></span><span>connected</span></div>
+  `;
+  row.appendChild(label);
+
+  return row;
+}
+
+// While the album is being searched, append a "thinking…" AI bubble.
+// We'll replace it with the real answer once the search animation finishes.
+function appendThinkingToTurn(turn){
+  const ai = renderAiMsg('', null);
+  ai.classList.add('thinking-msg');
+  const txEl = ai.querySelector('.text');
+  if (txEl) {
+    txEl.innerHTML = '<span class="thinking-label">searching camera roll</span>' +
+                     '<span class="typing-dots"><span></span><span></span><span></span></span>';
+  }
+  // Append into the centre message column (NOT the turn root, which would
+  // accidentally drop it into the right gutter under our new grid layout).
+  const msgs = turn.querySelector('.turn-msgs');
+  (msgs || turn).appendChild(ai);
+}
+
+// Run the riffle/scan animation INSIDE the folder chip:
+//  1. Switch the folder into "searching" mode (CSS does the lift, ring,
+//     scan-line sweep, and reveals the layered .stk cards).
+//  2. Repeatedly swap the .stk.top card's image for a new riffle thumb,
+//     and let CSS flip it off to the side. The next thumb beneath it
+//     becomes the new top card.
+async function runFolderSearch(folderRow, riffle, runId){
+  if (!folderRow) return;
+  folderRow.classList.remove('done');
+  folderRow.classList.add('searching');
+  const status = folderRow.querySelector('.fl-status span:last-child');
+  if (status) status.textContent = 'searching camera roll…';
+
+  const stack = folderRow.querySelector('.folder-stack');
+  if (!stack || !riffle.length) {
+    await sleep(900);
+    return;
+  }
+  const cards = {
+    back: stack.querySelector('.stk.back img'),
+    mid:  stack.querySelector('.stk.mid img'),
+    top:  stack.querySelector('.stk.top img'),
+  };
+  const topCard = stack.querySelector('.stk.top');
+  if (!topCard) return;
+
+  // Seed initial three cards.
+  let cursor = 0;
+  cards.back.src = riffle[cursor % riffle.length].thumb; cursor++;
+  cards.mid.src  = riffle[cursor % riffle.length].thumb; cursor++;
+  cards.top.src  = riffle[cursor % riffle.length].thumb; cursor++;
+
+  // Riffle: each beat we flip the top card off, promote mid→top and
+  // back→mid in IMAGE only (we don't rearrange DOM, that's brittle),
+  // then load a fresh thumb into the new "back" slot.
+  const RIFFLE_BEATS = 8;
+  const RIFFLE_INTERVAL = 220;
+  for (let i = 0; i < RIFFLE_BEATS; i++) {
+    if (runId !== SEQUENCER_RUN_ID) return;
+
+    // Trigger CSS flip-off on the current top card.
+    topCard.classList.add('flip');
+    await sleep(180);
+    if (runId !== SEQUENCER_RUN_ID) return;
+
+    // Promote: top gets what mid showed, mid gets what back showed,
+    // back loads a fresh thumb. Reset the flip class instantly while
+    // it's invisible mid-cycle so the user doesn't see the jump.
+    cards.top.src = cards.mid.src;
+    cards.mid.src = cards.back.src;
+    cards.back.src = riffle[cursor % riffle.length].thumb;
+    cursor++;
+
+    // Force the flip transition off without animating, so the card
+    // snaps back into place ready to flip again.
+    topCard.style.transition = 'none';
+    topCard.classList.remove('flip');
+    void topCard.offsetWidth;       // reflow
+    topCard.style.transition = '';
+
+    await sleep(RIFFLE_INTERVAL - 180);
+  }
+  // Brief "narrowing in" pause before the answer reveal.
+  await sleep(360);
+}
+
+// Replace the "thinking" AI bubble with the final answer. Sequence:
+//   a. Render AI bubble with retrieved photos visible (faded in via fly-out)
+//      and the answer text EMPTY.
+//   b. Photos fly out of the folder chip and land in their target slots
+//      → the visitor sees the evidence first.
+//   c. Brief beat (the agent is "drafting on top of these photos…").
+//   d. Stream the answer text in word-by-word, with a blinking caret.
+// This mirrors a retrieve-then-generate agent like Atom-Kii.
+async function revealAiAnswer(turn, task, photos, folderRow, runId){
+  const thinking = turn.querySelector('.thinking-msg');
+  if (thinking) thinking.remove();
+  if (runId !== SEQUENCER_RUN_ID) return;
+
+  // Build the bubble. Order in the body (set by renderAiMsg):
+  //   1. retrieved-tag    — visible immediately
+  //   2. text             — streams in next
+  //   3. attachments      — flies in LAST (hidden until then)
+  const ai = renderAiMsg('', photos);
+  const retrieved = ai.querySelector('.attachments.retrieved');
+  if (retrieved) {
+    retrieved.querySelectorAll('.attachment').forEach(a => {
+      a.style.opacity = '0';
+      a.style.transition = 'opacity 0.25s';
+    });
+  }
+  const msgs = turn.querySelector('.turn-msgs');
+  (msgs || turn).appendChild(ai);
+  scrollThreadToBottom();
+  // Recompute the chip → AI bubble link now that the bubble exists.
+  await sleep(60);
+  updateTurnLink(turn);
+  if (runId !== SEQUENCER_RUN_ID) return;
+
+  // 1. TEXT FIRST — stream word-by-word with a blinking caret.
+  const answerEl = ai.querySelector('.text');
+  await streamText(answerEl, task.aiReply, {
+    wordMs: 65, commaMs: 170, periodMs: 320,
+    runId,
+    onTick: () => { scrollThreadToBottom(); updateTurnLink(turn); },
+  });
+  scrollThreadToBottom();
+  if (runId !== SEQUENCER_RUN_ID) return;
+
+  // 2. Tiny beat, then photos fly out of the folder into the strip.
+  await sleep(280);
+  if (runId !== SEQUENCER_RUN_ID) return;
+  await flyPhotosOutOfFolder(photos, folderRow, retrieved, runId);
+  scrollThreadToBottom();
+  updateTurnLink(turn);
+}
+
+// Animate matched photos flying from the folder chip into the AI bubble.
+// Each clone STARTS at target size and at the folder's centre, then
+// translates straight to its target slot — no growing/shrinking or arc,
+// so the motion feels short and direct ("photos drop straight out of
+// the folder into their slots").
+function flyPhotosOutOfFolder(photos, folderRow, retrievedContainer, runId){
+  if (!retrievedContainer || !folderRow) return Promise.resolve();
+  const targets = Array.from(retrievedContainer.querySelectorAll('.attachment'));
+  if (!targets.length) return Promise.resolve();
+
+  const chip = folderRow.querySelector('.folder-chip');
+  const srcRect = chip.getBoundingClientRect();
+  // Start point: centre of the folder chip.
+  const srcCx = srcRect.left + srcRect.width  / 2;
+  const srcCy = srcRect.top  + srcRect.height / 2;
+
+  return new Promise(resolve => {
+    let pending = targets.length;
+    const done = () => { if (--pending <= 0) resolve(); };
+
+    photos.forEach((photo, i) => {
+      const target = targets[i];
+      if (!target) { done(); return; }
+      const tgtRect = target.getBoundingClientRect();
+
+      // The clone is born at target size, positioned so its CENTRE sits
+      // on the folder's centre. We then translate it (no resize) to the
+      // target slot's top-left.
+      const w = tgtRect.width;
+      const h = tgtRect.height;
+      const startX = srcCx - w / 2;
+      const startY = srcCy - h / 2;
+
+      const fly = document.createElement('div');
+      fly.className = 'flying-photo';
+      fly.style.left   = startX + 'px';
+      fly.style.top    = startY + 'px';
+      fly.style.width  = w + 'px';
+      fly.style.height = h + 'px';
+      // Pop out a touch smaller and grow to full size — feels like the
+      // photo is "emerging" from the folder rather than already there.
+      fly.style.transform = 'scale(0.7)';
+      fly.style.opacity = '0.85';
+      const img = document.createElement('img');
+      img.src = photo.thumb;
+      img.alt = '';
+      fly.appendChild(img);
+      document.body.appendChild(fly);
+
+      // Stagger so the photos pop out one after another (snappy).
+      setTimeout(() => {
+        if (runId !== SEQUENCER_RUN_ID) {
+          fly.remove(); done(); return;
+        }
+        const dx = tgtRect.left - startX;
+        const dy = tgtRect.top  - startY;
+        fly.style.transform = `translate(${dx}px, ${dy}px) scale(1)`;
+        fly.style.opacity = '1';
+      }, i * 80);
+
+      const onEnd = (ev) => {
+        if (ev && ev.propertyName && ev.propertyName !== 'transform') return;
+        fly.removeEventListener('transitionend', onEnd);
+        target.style.opacity = '1';
+        fly.style.opacity = '0';
+        setTimeout(() => fly.remove(), 180);
+        done();
+      };
+      fly.addEventListener('transitionend', onEnd);
+      // Failsafe in case transitionend doesn't fire.
+      setTimeout(onEnd, 700 + i * 80);
+    });
+  });
+}
+
+function scrollThreadToBottom(){
+  const t = document.getElementById('thread');
+  if (t) t.scrollTop = t.scrollHeight;
+}
+
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
 // User message row: avatar (initials, color from name) + name + attachments + text
-function renderUserMsg({ name, text, photos, isYou }){
+function renderUserMsg({ name, text, photos, isYou, category }){
   const msg = document.createElement('div');
   msg.className = 'msg user';
 
@@ -894,37 +2457,52 @@ function renderUserMsg({ name, text, photos, isYou }){
     tag.textContent = '· your contribution';
     who.appendChild(tag);
   }
+  // (Category badge intentionally not rendered — the `category` field
+  // is still kept on each EXAMPLE_TASKS entry for organisational purposes,
+  // but we don't surface the taxonomy in the UI.)
   body.appendChild(who);
 
-  if (photos && photos.length){
-    const att = document.createElement('div');
-    att.className = 'attachments n-' + photos.length;
-    photos.forEach(p => {
-      const a = document.createElement('div');
-      a.className = 'attachment';
-      const img = document.createElement('img');
-      img.loading = 'lazy';
-      img.src = p.thumb;
-      img.alt = '';
-      img.onerror = () => { img.style.opacity = '0.15'; };
-      a.appendChild(img);
-      a.onclick = () => { if (p.page) window.open(p.page, '_blank', 'noopener'); };
-      att.appendChild(a);
-    });
-    body.appendChild(att);
-  }
-
+  // Order in the user bubble: text FIRST, then attached photos with a
+  // small "attached · N image(s)" chip so it's visually distinct from
+  // the AI's "retrieved" strip.
   const tx = document.createElement('div');
   tx.className = 'text';
   tx.textContent = text;
   body.appendChild(tx);
 
+  if (photos && photos.length){
+    const tag = document.createElement('div');
+    tag.className = 'attached-tag';
+    tag.innerHTML = `<span class="aclip">📎</span> attached · ${photos.length} image${photos.length > 1 ? 's' : ''}`;
+    body.appendChild(tag);
+
+    const att = document.createElement('div');
+    att.className = 'attachments attached n-' + photos.length;
+    photos.forEach(p => {
+      const a = document.createElement('div');
+      a.className = 'attachment';
+      const img = document.createElement('img');
+      img.loading = 'lazy';
+      img.src = p.thumb || p.dataUrl || p.url;
+      img.alt = p.name || '';
+      img.onerror = () => { img.style.opacity = '0.15'; };
+      a.appendChild(img);
+      if (p.page) a.onclick = () => window.open(p.page, '_blank', 'noopener');
+      att.appendChild(a);
+    });
+    body.appendChild(att);
+  }
+
   msg.appendChild(body);
   return msg;
 }
 
-// AI reply row. Optionally renders retrieved photos under the reply text,
-// styled like a "search result" gallery (with a subtle "from your gallery" tag).
+// AI reply row. Order matches the agent's actual process:
+//   1. who          — "camroll"
+//   2. retrieved-tag + retrieved-photos   (we found these first)
+//   3. text         — the drafted answer (typed in afterwards)
+// This mirrors how an Atom-Kii-style agent works: retrieve evidence
+// from the camera roll, then draft the natural-language reply on top.
 function renderAiMsg(text, retrievedPhotos){
   const msg = document.createElement('div');
   msg.className = 'msg ai';
@@ -942,17 +2520,26 @@ function renderAiMsg(text, retrievedPhotos){
   who.textContent = 'camroll';
   body.appendChild(who);
 
+  // Reveal order in the bubble:
+  //   1. "retrieved from camera roll · N photos" tag (immediate)
+  //   2. Answer TEXT (streamed word-by-word)
+  //   3. Retrieved PHOTOS strip (flies in from the folder LAST)
+  if (retrievedPhotos && retrievedPhotos.length){
+    const tag = document.createElement('div');
+    tag.className = 'retrieved-tag';
+    tag.innerHTML = `<span class="dot">●</span> retrieved from camera roll · ${retrievedPhotos.length} photo${retrievedPhotos.length > 1 ? 's' : ''}`;
+    body.appendChild(tag);
+  }
+
+  // Answer text — streamed by the sequencer after the tag is shown.
   const tx = document.createElement('div');
   tx.className = 'text';
   tx.textContent = text;
   body.appendChild(tx);
 
+  // Retrieved photos appear LAST (flown in by the sequencer once the
+  // text has finished streaming).
   if (retrievedPhotos && retrievedPhotos.length){
-    const tag = document.createElement('div');
-    tag.className = 'retrieved-tag';
-    tag.innerHTML = `<span class="dot">●</span> retrieved from your gallery · ${retrievedPhotos.length} photo${retrievedPhotos.length > 1 ? 's' : ''}`;
-    body.appendChild(tag);
-
     const att = document.createElement('div');
     att.className = 'attachments retrieved n-' + retrievedPhotos.length;
     retrievedPhotos.forEach(p => {
@@ -978,8 +2565,8 @@ function renderAiMsg(text, retrievedPhotos){
 // FORM — chat-bar style. Each typed question gets sent on enter,
 // shown as a bubble above the input, and auto-saved to the sheet.
 // No "why" field. Indicator shows "X / 5 contributed".
+// (CONTRIB_COUNT is declared in the State block at the top.)
 // ─────────────────────────────────────────────────────────────
-let CONTRIB_COUNT = 0;
 
 function renderForm(){
   // Wipe any previous "you" turns and reset state.
@@ -991,6 +2578,12 @@ function renderForm(){
   inp.value = '';
   inp.style.height = 'auto';
   document.getElementById('send-btn').disabled = true;
+  // Also clear any pending attachments (the strip is rendered later
+  // by chat-bar wiring; renderAttachStrip is safe to no-op here).
+  if (typeof PENDING_ATTACH !== 'undefined') {
+    PENDING_ATTACH.length = 0;
+    if (typeof renderAttachStrip === 'function') renderAttachStrip();
+  }
 }
 
 function updateProgress(){
@@ -1034,19 +2627,24 @@ const SAVED_PHRASES = [
 ];
 function pickRandom(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
 
-// Append a "You" turn to the chat thread (no images attached, since
-// the user is asking the question, not the AI). Returns the turn element
-// so we can mark it saved later.
-function addContribBubble(text){
+// Append a "You" turn to the chat thread. If the visitor attached
+// reference images via the chatbar's ＋ button, they're rendered inline
+// in the user bubble (same style as the fake users' attached refs).
+function addContribBubble(text, photos){
   CONTRIB_COUNT += 1;
   const inner = document.getElementById('thread-inner');
 
   const turn = document.createElement('div');
   turn.className = 'turn you pending';
-  turn.appendChild(renderUserMsg({
+  turn.appendChild(buildTurnHeader('You', 'your contribution'));
+  // Wrap messages in .turn-msgs so they span the full grid width
+  // (.turn.you .turn-msgs is set to `grid-column: 1 / -1` in CSS).
+  const msgs = document.createElement('div');
+  msgs.className = 'turn-msgs';
+  msgs.appendChild(renderUserMsg({
     name: 'You',
     text: text,
-    photos: null,
+    photos: photos && photos.length ? photos : null,
     isYou: true,
   }));
 
@@ -1064,7 +2662,8 @@ function addContribBubble(text){
     dots.innerHTML = '<span></span><span></span><span></span>';
     txEl.appendChild(dots);
   }
-  turn.appendChild(ai);
+  msgs.appendChild(ai);
+  turn.appendChild(msgs);
 
   inner.appendChild(turn);
 
@@ -1076,7 +2675,7 @@ function addContribBubble(text){
   return turn;
 }
 
-function markBubbleSaved(turn){
+function markBubbleSaved(turn, imageCount){
   turn.classList.remove('pending');
   turn.classList.add('saved');
   const txEl = turn.querySelector('.saving-msg .text');
@@ -1084,7 +2683,11 @@ function markBubbleSaved(turn){
     txEl.innerHTML = '';
     const span = document.createElement('span');
     span.className = 'saved-text';
-    span.textContent = pickRandom(SAVED_PHRASES);
+    let phrase = pickRandom(SAVED_PHRASES);
+    if (imageCount && imageCount > 0) {
+      phrase += ` (with ${imageCount} image${imageCount > 1 ? 's' : ''})`;
+    }
+    span.textContent = phrase;
     txEl.appendChild(span);
   }
   // Pop a small green "saved" chip next to the user's name.
@@ -1092,7 +2695,9 @@ function markBubbleSaved(turn){
   if (who && !who.querySelector('.saved-chip')) {
     const chip = document.createElement('span');
     chip.className = 'saved-chip';
-    chip.textContent = '✓ saved';
+    chip.textContent = imageCount > 0
+      ? `✓ saved · ${imageCount} image${imageCount > 1 ? 's' : ''}`
+      : '✓ saved';
     who.appendChild(chip);
   }
 }
@@ -1118,13 +2723,100 @@ function logOne(payload){
   }
 }
 
-async function sendQuestion(text){
+// Long-edge cap for visitor uploads. Anything larger is downscaled
+// client-side before sending, to keep Apps Script payloads sane.
+// 1600px is plenty for any "find more like these" reference image
+// while keeping each upload under ~500 KB after JPEG re-encode.
+const MAX_UPLOAD_LONG_EDGE = 1600;
+const UPLOAD_JPEG_QUALITY  = 0.82;
+
+// Downscale + re-encode an image attachment if needed. Returns
+// { originalName, name, type, size, base64, width, height, downscaled }
+// where base64 is RAW base64 (no `data:...;base64,` prefix).
+// `originalName` is preserved so the Apps Script can log what the user
+// uploaded, even though the saved file uses the resized .jpg name.
+async function prepareAttachmentForUpload(att){
+  const img = await new Promise((res, rej) => {
+    const i = new Image();
+    i.onload  = () => res(i);
+    i.onerror = () => rej(new Error('decode failed'));
+    i.src = att.dataUrl;
+  });
+  const longEdge = Math.max(img.width, img.height);
+  const needsResize = longEdge > MAX_UPLOAD_LONG_EDGE;
+
+  // Always go through canvas re-encode now — that way every file gets
+  // converted to JPEG and we know the payload is bounded.
+  const scale = needsResize ? (MAX_UPLOAD_LONG_EDGE / longEdge) : 1;
+  const w = Math.max(1, Math.round(img.width  * scale));
+  const h = Math.max(1, Math.round(img.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, w, h);
+  const dataUrl = canvas.toDataURL('image/jpeg', UPLOAD_JPEG_QUALITY);
+  const raw = dataUrl.split(',', 2)[1] || '';
+  // Build a sensible saved filename — keep the original stem so it's
+  // recognisable in Drive ("vacation_at_home_1600x1067.jpg"), force .jpg.
+  const originalName = att.name || 'image.jpg';
+  const stem = originalName.replace(/\.[^.]+$/, '') || 'image';
+  const newName = stem + (needsResize ? `_${w}x${h}` : '') + '.jpg';
+  // size = byte length of the re-encoded data.
+  const sizeBytes = Math.floor(raw.length * 3 / 4);
+  return {
+    originalName,
+    name:        newName,
+    type:        'image/jpeg',
+    size:        sizeBytes,
+    base64:      raw,
+    width:       w,
+    height:      h,
+    downscaled:  needsResize,
+  };
+}
+
+async function sendQuestion(text, attachments){
   text = (text || '').trim();
-  if (!text) return;
-  const bub = addContribBubble(text);
+  if (!text && !(attachments && attachments.length)) return;
+  const photos = (attachments || []).slice();
+  const bub = addContribBubble(text, photos);
   const submittedAt = new Date().toISOString();
+
+  // ── Prepare attachments: downscale to ≤ 2048px long edge, re-encode
+  //    as JPEG, and base64 the bytes for transport. The Apps Script
+  //    behind LOG_ENDPOINT decodes this and writes each image to a
+  //    Drive folder, putting the resulting URLs into the sheet row.
+  //    See the Apps Script template in the README / chat for the
+  //    matching server-side code.
+  let prepared = [];
+  if (photos.length) {
+    try {
+      prepared = await Promise.all(photos.map(prepareAttachmentForUpload));
+    } catch (e) {
+      toast('Couldn\'t process an attached image: ' + (e.message || e), true);
+      return;
+    }
+  }
+  const attachPayload = prepared.map(a => ({
+    original_name: a.originalName,    // what the user picked
+    name:          a.name,            // what we'll save as in Drive
+    type:          a.type,
+    size:          a.size,
+    width:         a.width,
+    height:        a.height,
+    downscaled:    a.downscaled,
+    base64:        a.base64,          // ← RAW image bytes (no data: prefix)
+  }));
+
+  // A plain "name1, name2" string is also sent so the sheet has the
+  // filenames in a single column at a glance (no need to expand JSON).
+  const attachNames = prepared.map(a => a.originalName).join(', ');
+
   await logOne({
-    question: `[collection] Q${CONTRIB_COUNT}: ${text}`,
+    // Plain question text — NO image-info suffix any more. Files are
+    // saved separately (see q_attachments_data) and the Apps Script
+    // writes a Drive URL column.
+    question: `[collection] Q${CONTRIB_COUNT}: ${text || '(no text)'}`,
     user: null,
     session_id: SESSION_ID,
     page_url: location.href,
@@ -1132,21 +2824,44 @@ async function sendQuestion(text){
     kind: 'question_collection',
     q_idx: CONTRIB_COUNT,
     q_text: text,
+    q_attachment_count: prepared.length,
+    q_attachment_names: attachNames,     // ← original filenames, comma-separated
+    q_attachments_data: attachPayload,   // ← what the Apps Script consumes
     submitted_at: submittedAt,
   });
-  // Mark saved as soon as the log request finishes — the green ✓
-  // is a truthful signal that the question made it to the sheet.
-  markBubbleSaved(bub);
+  // Mark saved as soon as the log request finishes. We use 'no-cors'
+  // so we can't read the response (and therefore can't surface Drive
+  // URLs back here) — but the row + Drive files are now created.
+  markBubbleSaved(bub, prepared.length);
 }
 
 // ─────────────────────────────────────────────────────────────
-// Chat-bar wiring
+// Chat-bar wiring (text + image attachments)
 // ─────────────────────────────────────────────────────────────
-const inp = document.getElementById('chat-input');
-const sendBtn = document.getElementById('send-btn');
+const inp        = document.getElementById('chat-input');
+const sendBtn    = document.getElementById('send-btn');
+const attachBtn  = document.getElementById('attach-btn');
+const attachInp  = document.getElementById('attach-input');
+const attachStrip = document.getElementById('attach-strip');
+
+// Pending attachments held in memory until the user hits Send.
+// Each entry: { name, type, size, dataUrl } — dataUrl is base64 used
+// for the in-page preview thumb AND as the source for the upload
+// (which client-side downscales to ≤ 2048px long edge before sending,
+// see prepareAttachmentForUpload).
+const MAX_VISITOR_ATTACH     = 5;
+const MAX_VISITOR_FILE_BYTES = 10 * 1024 * 1024;  // 10 MB per ORIGINAL file
+let PENDING_ATTACH = [];
+
+function canSend(){
+  // Allow sending even with no text if at least one image is attached
+  // (some users will just want to send "find more like these").
+  return !!inp.value.trim() || PENDING_ATTACH.length > 0;
+}
+function refreshSendBtn(){ sendBtn.disabled = !canSend(); }
 
 inp.addEventListener('input', () => {
-  sendBtn.disabled = !inp.value.trim();
+  refreshSendBtn();
   inp.style.height = 'auto';
   inp.style.height = Math.min(inp.scrollHeight, 120) + 'px';
 });
@@ -1158,13 +2873,172 @@ inp.addEventListener('keydown', e => {
 });
 sendBtn.addEventListener('click', submitFromInput);
 
+// ── Attach-button + file picker ──────────────────────────────
+attachBtn.addEventListener('click', () => attachInp.click());
+attachInp.addEventListener('change', () => {
+  const files = Array.from(attachInp.files || []);
+  attachInp.value = '';   // allow re-picking the same file later
+  ingestVisitorAttachments(files);
+});
+
+// ── Drag-and-drop anywhere on the page ──────────────────────────
+// Visitor can drop image files anywhere — a full-page overlay tells
+// them so the moment they begin dragging files over the window. We
+// use a `dragenter` / `dragleave` COUNTER (not a flag) because those
+// events bubble per-child, so naïve set/clear flickers badly.
+const dropOverlay = document.getElementById('drop-overlay');
+let dragDepth = 0;
+
+function dragHasFiles(e){
+  if (!e.dataTransfer) return false;
+  const types = Array.from(e.dataTransfer.types || []);
+  return types.includes('Files');
+}
+function showDrop(){
+  dropOverlay.classList.add('show');
+  document.body.classList.add('drag-over');
+}
+function hideDrop(){
+  dropOverlay.classList.remove('show');
+  document.body.classList.remove('drag-over');
+  dragDepth = 0;
+}
+
+window.addEventListener('dragenter', e => {
+  if (!dragHasFiles(e)) return;
+  e.preventDefault();
+  dragDepth += 1;
+  showDrop();
+});
+window.addEventListener('dragover', e => {
+  if (!dragHasFiles(e)) return;
+  e.preventDefault();
+  // Tell the browser this is a "copy" so the cursor shows the right icon.
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+});
+window.addEventListener('dragleave', e => {
+  if (!dragHasFiles(e)) return;
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (dragDepth === 0) hideDrop();
+});
+window.addEventListener('drop', e => {
+  if (!dragHasFiles(e)) {
+    hideDrop();
+    return;
+  }
+  e.preventDefault();
+  hideDrop();
+  const files = Array.from(e.dataTransfer.files || [])
+    .filter(f => f.type && f.type.startsWith('image/'));
+  if (!files.length) {
+    toast('Only image files can be attached.', true);
+    return;
+  }
+  ingestVisitorAttachments(files);
+});
+// If the user drags out of the window entirely, ESC, or the tab loses
+// focus, make sure the overlay doesn't get stuck on.
+window.addEventListener('blur',     hideDrop);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') hideDrop(); });
+
+// Paste-to-attach: handy if the user copied images from Finder / a
+// browser tab. We accept any image/* clipboard items.
+window.addEventListener('paste', e => {
+  if (!e.clipboardData) return;
+  const files = Array.from(e.clipboardData.files || [])
+    .filter(f => f.type && f.type.startsWith('image/'));
+  if (files.length) {
+    e.preventDefault();
+    ingestVisitorAttachments(files);
+  }
+});
+
+function ingestVisitorAttachments(files){
+  // 1. Reject non-image files outright (clear toast so the user knows
+  //    why their PDF / video / .DS_Store / etc was ignored).
+  const imagesOnly = (files || []).filter(f => f && f.type && f.type.startsWith('image/'));
+  const rejected   = (files || []).filter(f => !(f && f.type && f.type.startsWith('image/')));
+  if (rejected.length) {
+    const names = rejected.slice(0, 2).map(f => f.name || '(unnamed)').join(', ');
+    const more  = rejected.length > 2 ? ` (+${rejected.length - 2} more)` : '';
+    toast(`Only images can be attached. Skipped: ${names}${more}.`, true);
+  }
+  if (!imagesOnly.length) return;
+
+  // 2. Enforce the 5-image cap (counting any already in the strip).
+  const room = MAX_VISITOR_ATTACH - PENDING_ATTACH.length;
+  if (room <= 0) {
+    toast(`Up to ${MAX_VISITOR_ATTACH} images per question.`, true);
+    return;
+  }
+  const accepted = imagesOnly.slice(0, room);
+  if (accepted.length < imagesOnly.length) {
+    toast(`Only ${accepted.length} added (max ${MAX_VISITOR_ATTACH} images per question).`);
+  }
+
+  accepted.forEach(file => {
+    if (file.size > MAX_VISITOR_FILE_BYTES) {
+      toast(`"${file.name}" is too large (max 10 MB).`, true);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      PENDING_ATTACH.push({
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        dataUrl: reader.result,
+      });
+      renderAttachStrip();
+      refreshSendBtn();
+    };
+    reader.onerror = () => toast(`Couldn't read "${file.name}"`, true);
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderAttachStrip(){
+  if (!PENDING_ATTACH.length) {
+    attachStrip.hidden = true;
+    attachStrip.innerHTML = '';
+    return;
+  }
+  attachStrip.hidden = false;
+  attachStrip.innerHTML = '';
+  PENDING_ATTACH.forEach((p, idx) => {
+    const cell = document.createElement('div');
+    cell.className = 'attach-thumb fade-in';
+    cell.title = `${p.name} · ${(p.size/1024).toFixed(0)} KB`;
+    const img = document.createElement('img');
+    img.src = p.dataUrl;
+    img.alt = p.name || '';
+    cell.appendChild(img);
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'attach-x';
+    x.textContent = '×';
+    x.title = 'Remove';
+    x.onclick = () => {
+      PENDING_ATTACH.splice(idx, 1);
+      renderAttachStrip();
+      refreshSendBtn();
+    };
+    cell.appendChild(x);
+    attachStrip.appendChild(cell);
+  });
+}
+
 function submitFromInput(){
   const v = inp.value.trim();
-  if (!v) return;
-  sendQuestion(v);
+  if (!v && !PENDING_ATTACH.length) return;
+  // Snapshot + clear so a fast re-send doesn't pick up stale attachments.
+  const sentPhotos = PENDING_ATTACH.slice();
+  PENDING_ATTACH = [];
+  renderAttachStrip();
+  sendQuestion(v, sentPhotos);
   inp.value = '';
   inp.style.height = 'auto';
-  sendBtn.disabled = true;
+  refreshSendBtn();
   inp.focus();
 }
 
@@ -1188,6 +3062,246 @@ function toast(msg, isErr){
   toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
 }
 
+// ─────────────────────────────────────────────────────────────
+// CAMERA-ROLL MODAL — clickable folder chip → real chronological
+// photo grid for the YFCC user bound to that turn. Mirrors what
+// camroll_dataviewer.html shows (date headers, dense thumb grid,
+// click for big preview), but rendered inline as a modal so the
+// visitor never leaves the question-collection page.
+// ─────────────────────────────────────────────────────────────
+let YFCC_USERS = null;          // [{id,name,avatar,years,photoCount,preview,…}, …]
+const YFCC_PHOTO_CACHE = {};    // uid → {nsid, photos:[{id,farm,server,secret,date,page,title}, …]}
+let CRM_LAST_FOCUS = null;      // restore focus on close
+
+async function ensureYfccManifest(){
+  if (YFCC_USERS) return YFCC_USERS;
+  const res = await fetch('yfcc_users.json', { cache: 'no-cache' });
+  if (!res.ok) throw new Error('yfcc_users.json HTTP ' + res.status);
+  const json = await res.json();
+  YFCC_USERS = (json && json.users) || [];
+  return YFCC_USERS;
+}
+
+// Lightweight CSV parser — same approach as the dataviewer (handles
+// the simple, well-quoted release format). Returns photos sorted
+// newest-first.
+function parsePhotosCsv(text){
+  const lines = text.split(/\r?\n/);
+  if (!lines.length) return { nsid: null, photos: [] };
+  const header = parseCsvLine(lines[0]);
+  const idx = name => header.indexOf(name);
+  const cols = {
+    photoid:   idx('photoid'),
+    uid:       idx('uid'),
+    farmid:    idx('farmid'),
+    serverid:  idx('serverid'),
+    secret:    idx('secret'),
+    pageurl:   idx('pageurl'),
+    title:     idx('title'),
+    datetaken: idx('datetaken'),
+  };
+  const photos = [];
+  let nsid = null;
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i]) continue;
+    const r = parseCsvLine(lines[i]);
+    const pid = r[cols.photoid];
+    if (!pid) continue;
+    if (nsid === null) nsid = r[cols.uid] || null;
+    photos.push({
+      id:     pid,
+      farm:   r[cols.farmid],
+      server: r[cols.serverid],
+      secret: r[cols.secret],
+      page:   r[cols.pageurl],
+      title:  r[cols.title],
+      date:   r[cols.datetaken],
+    });
+  }
+  photos.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  return { nsid, photos };
+}
+function parseCsvLine(line){
+  const out = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQ) {
+      if (c === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+      else if (c === '"') { inQ = false; }
+      else { cur += c; }
+    } else {
+      if (c === ',') { out.push(cur); cur = ''; }
+      else if (c === '"') { inQ = true; }
+      else { cur += c; }
+    }
+  }
+  out.push(cur);
+  return out;
+}
+
+function flickrThumbUrl(p, size){
+  size = size || 'q';
+  if (!p) return '';
+  return `https://farm${p.farm}.staticflickr.com/${p.server}/${p.id}_${p.secret}_${size}.jpg`;
+}
+
+const CRM_MONTHS = ['January','February','March','April','May','June',
+                    'July','August','September','October','November','December'];
+function crmMonthKey(isoDate){
+  if (!isoDate) return { key: '0000-00', label: 'Date unknown' };
+  const d = new Date(String(isoDate).replace(' ', 'T'));
+  if (isNaN(d)) return { key: '0000-00', label: 'Date unknown' };
+  const y = d.getFullYear();
+  const m = d.getMonth();
+  return {
+    key: `${y}-${String(m).padStart(2,'0')}`,
+    label: `${CRM_MONTHS[m]} ${y}`,
+  };
+}
+
+async function openCameraRoll(yu){
+  const overlay = document.getElementById('crm-overlay');
+  if (!overlay || !yu) return;
+  CRM_LAST_FOCUS = document.activeElement;
+  overlay.classList.add('open');
+  document.body.style.overflow = 'hidden';
+
+  // Header — show the REAL YFCC user (we no longer use fictional names).
+  const av  = document.getElementById('crm-av');
+  const nm  = document.getElementById('crm-name');
+  const sub = document.getElementById('crm-sub');
+  const c = colorForName(yu.name);
+  av.style.background = c.bg;
+  av.textContent = initialsFromName(yu.name);
+  nm.innerHTML = `<strong>${escapeHtml(yu.name)}</strong>'s camera roll`;
+  sub.textContent = 'connecting…';
+
+  const scroll = document.getElementById('crm-scroll');
+  scroll.innerHTML =
+    '<div class="crm-loading">connecting to camera roll…</div>' +
+    '<div class="crm-scroll-date" id="crm-scroll-date"></div>';
+
+  // Stub users (manifest failed to load) have no real album to show.
+  if (yu._stub || !yu.id) {
+    scroll.innerHTML =
+      '<div class="crm-error">Camera roll unavailable (manifest not loaded).</div>';
+    sub.textContent = '—';
+    return;
+  }
+
+  try {
+    let payload = YFCC_PHOTO_CACHE[yu.id];
+    if (!payload) {
+      const csvRes = await fetch(`data/release/${yu.id}/photos.csv`, { cache: 'no-cache' });
+      if (!csvRes.ok) throw new Error('photos.csv HTTP ' + csvRes.status);
+      const csv = await csvRes.text();
+      payload = parsePhotosCsv(csv);
+      YFCC_PHOTO_CACHE[yu.id] = payload;
+    }
+
+    sub.textContent =
+      `${payload.photos.length.toLocaleString()} photos` +
+      (yu.years ? ` · ${yu.years}` : '');
+    crmRenderGrid(payload.photos);
+  } catch (e) {
+    scroll.innerHTML =
+      `<div class="crm-error">Couldn't load camera roll: ${escapeHtml(e.message)}</div>`;
+    sub.textContent = '—';
+  }
+}
+
+function closeCameraRoll(){
+  const overlay = document.getElementById('crm-overlay');
+  if (!overlay) return;
+  overlay.classList.remove('open');
+  document.body.style.overflow = '';
+  if (CRM_LAST_FOCUS && CRM_LAST_FOCUS.focus) {
+    try { CRM_LAST_FOCUS.focus(); } catch (e) {}
+  }
+}
+
+function crmRenderGrid(photos){
+  const wrap = document.getElementById('crm-scroll');
+  wrap.innerHTML = '';
+  // Re-attach the floating date pill (was wiped above).
+  const pill = document.createElement('div');
+  pill.className = 'crm-scroll-date';
+  pill.id = 'crm-scroll-date';
+  wrap.appendChild(pill);
+
+  if (!photos || !photos.length) {
+    wrap.innerHTML += '<div class="crm-loading">no photos</div>';
+    return;
+  }
+
+  let curKey = null;
+  let curRow = null;
+  photos.forEach(p => {
+    const mk = crmMonthKey(p.date);
+    if (mk.key !== curKey) {
+      curKey = mk.key;
+      const group = document.createElement('div');
+      group.className = 'crm-event';
+      group.innerHTML = `<div class="crm-event-label">${escapeHtml(mk.label)}</div>`;
+      curRow = document.createElement('div');
+      curRow.className = 'crm-row';
+      group.appendChild(curRow);
+      wrap.appendChild(group);
+    }
+    const t = document.createElement('div');
+    t.className = 'crm-thumb';
+    t.title = p.title || '';
+    const img = document.createElement('img');
+    img.loading = 'lazy';
+    img.src = flickrThumbUrl(p, 'q');
+    img.alt = '';
+    img.onerror = () => {
+      img.classList.add('broken');
+      img.src = 'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 1 1%22><rect width=%221%22 height=%221%22 fill=%22%23222%22/></svg>';
+    };
+    t.appendChild(img);
+    t.onclick = () => openCameraRollLB(p);
+    curRow.appendChild(t);
+  });
+
+  // Floating date pill while scrolling (mirrors the dataviewer).
+  let hideTimer = null;
+  wrap.onscroll = () => {
+    const labels = wrap.querySelectorAll('.crm-event-label');
+    const top = wrap.scrollTop;
+    let active = null;
+    labels.forEach(lbl => { if (lbl.offsetTop <= top + 12) active = lbl; });
+    if (active) {
+      pill.textContent = active.textContent.trim();
+      pill.classList.add('show');
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => pill.classList.remove('show'), 900);
+    }
+  };
+}
+
+function openCameraRollLB(photo){
+  const lb  = document.getElementById('crm-lb');
+  const img = document.getElementById('crm-lb-img');
+  if (!lb || !img) return;
+  img.src = flickrThumbUrl(photo, 'b');  // larger Flickr size
+  lb.classList.add('open');
+}
+function closeCameraRollLB(){
+  const lb = document.getElementById('crm-lb');
+  if (lb) lb.classList.remove('open');
+}
+
+// Esc closes lightbox first, then the modal.
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  const lb = document.getElementById('crm-lb');
+  if (lb && lb.classList.contains('open')) { closeCameraRollLB(); return; }
+  const overlay = document.getElementById('crm-overlay');
+  if (overlay && overlay.classList.contains('open')) closeCameraRoll();
+});
+
 // Warn before leaving if there's text in the input the user hasn't sent yet.
 window.addEventListener('beforeunload', e => {
   const cur = (inp.value || '').trim();
@@ -1199,5 +3313,31 @@ window.addEventListener('beforeunload', e => {
 
 boot();
 </script>
+
+<!-- Camera-roll modal: opened when a folder chip is clicked. Shows a
+     real YFCC user's chronological photo grid (deterministically picked
+     per fictional name). All controls go through the JS in the same
+     <script> block above. -->
+<div class="crm-overlay" id="crm-overlay" onclick="if(event.target===this) closeCameraRoll()">
+  <div class="crm-panel" role="dialog" aria-modal="true" aria-labelledby="crm-name">
+    <div class="crm-header">
+      <div class="crm-av" id="crm-av"></div>
+      <div class="crm-meta">
+        <div class="crm-name" id="crm-name">Loading…</div>
+        <div class="crm-sub"  id="crm-sub">camera roll · live connection</div>
+      </div>
+      <button class="crm-close" type="button" onclick="closeCameraRoll()" title="Close (Esc)">×</button>
+    </div>
+    <div class="crm-scroll" id="crm-scroll">
+      <div class="crm-loading">connecting to camera roll…</div>
+      <div class="crm-scroll-date" id="crm-scroll-date"></div>
+    </div>
+  </div>
+</div>
+<div class="crm-lb" id="crm-lb" onclick="if(event.target===this||event.target.tagName==='IMG') closeCameraRollLB()">
+  <button class="crm-lb-close" type="button" onclick="closeCameraRollLB()" title="Close (Esc)">×</button>
+  <img id="crm-lb-img" src="" alt="">
+</div>
+
 </body>
 </html>
