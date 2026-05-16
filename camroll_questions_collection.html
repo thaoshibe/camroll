@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>camroll · question collection</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Caveat:wght@500;600;700&display=swap" rel="stylesheet">
 <script>
   // Set theme before paint to avoid flash-of-wrong-theme.
   // Shares the same localStorage key as camroll_demo.html so theme
@@ -79,26 +79,944 @@ body{
   transition:background 0.18s, color 0.18s;
 }
 
-/* ── CHAT THREAD — single centered column, ChatGPT/Claude-style ─ */
+/* ── LIMITLESS BOARD — Miro-style off-white surface covered in
+   scattered sticky notes. The board is ALWAYS light (regardless of
+   the page theme) because a dark sticky-note board looks like a
+   crime-scene corkboard, not a brainstorm. The visitor can grab
+   the empty space and drag to pan around; scrolling the wheel also
+   pans. The "thread" element is just the viewport — the actual
+   content lives inside .board-canvas which is huge and absolutely
+   positioned. */
 .thread{
   position:fixed;
   top:54px;          /* flush directly under the 54px header bar */
   left:0; right:0;
-  bottom:170px;      /* leave room for the chatbar at the bottom */
+  bottom:0;          /* full height; chatbar floats above it */
   z-index:5;
-  overflow-y:auto;
-  scroll-behavior:smooth;
+  overflow:hidden;   /* board panning, no scrollbars */
+  cursor:grab;
+  /* Always-light Miro-style board surface. */
+  background:#f6f5f1;
 }
-.thread::-webkit-scrollbar{ width:8px; }
-.thread::-webkit-scrollbar-thumb{ background:var(--scrollbar); border-radius:4px; }
-.thread::-webkit-scrollbar-thumb:hover{ background:var(--border-strong); }
+.thread.panning{ cursor:grabbing; }
+.thread::before{
+  /* Subtle dotted grid texture — fixed to the viewport so the dots
+     don't slide as the canvas pans (which would feel like the paper
+     is moving under the notes, which actually reads great as
+     "infinite"). */
+  content:'';
+  position:absolute; inset:0;
+  pointer-events:none;
+  background-image:
+    radial-gradient(rgba(0,0,0,0.13) 1px, transparent 1px);
+  background-size:24px 24px;
+  background-position:0 0;
+  opacity:0.6;
+  z-index:0;
+}
 
-.thread-inner{
-  max-width:920px;
-  margin:0 auto;
-  padding:18px 20px 24px;
-  display:flex; flex-direction:column;
+/* The actual canvas — way bigger than the viewport so notes feel
+   scattered across a "board with no edges". We translate(x,y) it
+   to pan. */
+.board-canvas{
+  position:absolute;
+  top:0; left:0;
+  width:8000px;
+  height:6000px;
+  transform:translate(0px, 0px);
+  transform-origin:0 0;
+  will-change:transform;
+  z-index:1;
+}
+
+/* Floating hint at the top so first-time visitors know they can
+   drag the board. Fades after the first pan. */
+.board-hint{
+  position:fixed;
+  top:70px; left:50%;
+  transform:translateX(-50%);
+  z-index:6;
+  display:inline-flex; align-items:center; gap:8px;
+  padding:6px 14px;
+  font-size:11.5px; letter-spacing:0.04em;
+  color:#1a1812;
+  background:rgba(255,255,255,0.92);
+  border:1px solid rgba(0,0,0,0.10);
+  border-radius:999px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.10);
+  pointer-events:none;
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+  transition:opacity 0.4s;
+}
+.board-hint.faded{ opacity:0; }
+.board-hint .bh-dot{
+  width:6px; height:6px; border-radius:50%;
+  background:#2a6310;
+  box-shadow:0 0 6px rgba(42,99,16,0.4);
+}
+
+/* Legacy thread-inner kept for any compatibility queries; not used
+   for visible layout (the renderer places "you" turns directly onto
+   the board as sticky notes). */
+.thread-inner{ display:none; }
+
+/* ── EXAMPLES ON THE BOARD ─────────────────────────────────────
+   The 3 worked-example conversations are displayed as STICKY NOTES
+   scattered at random positions across the limitless board. Each note
+   holds the FULL chat (question + why + folder + AI answer + photos),
+   just shrunk down. Each has a random tilt, random pastel paper color,
+   and a small coloured pushpin on top.
+
+   Click a memo → the full-size chat opens in a modal overlay
+   (#example-modal). Click outside / press Esc to close.
+
+   The visitor's own "you" turns are ALSO placed as sticky notes at
+   random positions on the same board. */
+
+/* Hidden — replaced by free-scattering on the board. */
+.examples-wrap{ display:none; }
+.examples-eyebrow{ display:none; }
+
+/* NOTE CLUSTER — the visual "pod" on the board. Each pod has:
+   • A PHOTO STACK on one side (a folder-like spill of polaroids —
+     the asker's camera roll).
+   • A STICKY NOTE on the opposite side (the question).
+   • A SOFT CURVED LINE drawn between them (SVG), so it reads as
+     "this question is about this camera roll".
+   • A speaker NAME-TAG on the note.
+   Two SEPARATE click targets sit inside the pod (not the pod
+   itself):
+     - .pc-stack  → opens the asker's camera roll
+     - .example-memo → opens the full chat for the question
+   This makes the visitor's intent unambiguous: "show me the photos"
+   vs. "show me the conversation". */
+.note-cluster{
+  position:absolute;
+  width:var(--cluster-w, 380px);
+  height:var(--cluster-h, 240px);
+  transform:rotate(var(--cluster-tilt, 0deg));
+  transition:transform 0.28s cubic-bezier(0.22, 0.9, 0.3, 1);
+  font-family:'DM Sans', sans-serif;
+  /* No background, no border — the cluster is a transparent layout
+     container. The polaroids and sticky note carry all the visuals. */
+  background:transparent;
+  border:none;
+  padding:0;
+}
+/* Hovering ANY child of the cluster (stack, memo, even the dashed
+   line) lifts the whole pod gently so the connection between the
+   two affordances reads as a single subject. */
+.note-cluster:hover{
+  transform:rotate(0deg) translateY(-4px) scale(1.02);
+  z-index:30;
+}
+.note-cluster:hover .nc-link path{
+  stroke-dashoffset:0;
+  opacity:0.95;
+}
+
+/* Per-affordance hover: each click target gets its own emphasis so
+   the visitor can SEE which one they're about to click. */
+.note-cluster .pc-stack:hover .pc-photo,
+.note-cluster .pc-stack:focus-visible .pc-photo{
+  /* Photos spread out slightly + lift, like the visitor is about to
+     pick up the whole folder. Keeps each polaroid's resting tilt. */
+  transform:rotate(var(--ph-tilt, 0deg)) translateY(-3px) scale(1.04);
+  box-shadow:
+    0 2px 3px rgba(0,0,0,0.18),
+    0 12px 24px rgba(0,0,0,0.24);
+}
+.note-cluster .example-memo:hover{
+  box-shadow:
+    0 2px 4px rgba(34,30,20,0.10),
+    0 12px 24px rgba(34,30,20,0.16);
+}
+
+/* PHOTO STACK — a fanned spill of polaroid-style cards on one side
+   of the cluster. The stack itself is a <button>, so we reset all
+   the default button chrome (background, border, padding, font) and
+   let the polaroids carry all the visuals. Click → opens this
+   asker's camera roll modal. */
+.note-cluster .pc-stack{
+  position:absolute;
+  width:var(--stack-size, 130px);
+  height:var(--stack-size, 130px);
+  /* Side is set inline by JS via --stack-x / --stack-y. */
+  left:var(--stack-x, 12px);
+  top:var(--stack-y, 50%);
+  transform:translateY(-50%);
+  /* Button reset. */
+  background:transparent;
+  border:none;
+  padding:0;
+  margin:0;
+  font:inherit;
+  color:inherit;
+  cursor:pointer;
+  /* The "Open camera roll" hint pill anchors against this box. */
+  overflow:visible;
+}
+.note-cluster .pc-stack:focus-visible{
+  outline:none;
+}
+.note-cluster .pc-stack:focus-visible .pc-photo:last-of-type{
+  box-shadow:
+    0 0 0 3px rgba(42,99,16,0.55),
+    0 4px 10px rgba(0,0,0,0.16);
+}
+
+/* "Open camera roll" hint — small pill that pops out from under the
+   stack on hover, so visitors know the photos are a distinct click
+   target (not just decoration of the sticky note). */
+.note-cluster .pc-stack::after{
+  content:'open camera roll';
+  position:absolute;
+  left:50%;
+  bottom:-26px;
+  transform:translateX(-50%) translateY(4px);
+  font-family:'DM Sans', sans-serif;
+  font-size:10.5px;
+  font-weight:600;
+  letter-spacing:0.02em;
+  color:#fff;
+  background:#2b2820;
+  padding:4px 10px;
+  border-radius:999px;
+  white-space:nowrap;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity 0.18s, transform 0.18s;
+  box-shadow:0 4px 10px rgba(0,0,0,0.22);
+  z-index:6;
+}
+.note-cluster .pc-stack:hover::after,
+.note-cluster .pc-stack:focus-visible::after{
+  opacity:1;
+  transform:translateX(-50%) translateY(0);
+}
+.note-cluster .pc-photo{
+  position:absolute;
+  width:100%; height:100%;
+  /* Each polaroid gets its own --ph-tilt (rotation) and --ph-dx,
+     --ph-dy (offset from the stack centre) so the pile looks hand-
+     spilled. JS assigns these. */
+  left:var(--ph-dx, 0px);
+  top:var(--ph-dy, 0px);
+  background:#fff;
+  /* Inner padding leaves a small white frame around the image —
+     polaroid border. Bottom edge slightly fatter for that real
+     polaroid silhouette. */
+  padding:5px 5px 10px;
+  border-radius:2px;
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.15),
+    0 4px 10px rgba(0,0,0,0.16);
+  transform:rotate(var(--ph-tilt, 0deg));
+  transform-origin:center;
+  transition:transform 0.22s cubic-bezier(0.22, 0.9, 0.3, 1),
+             box-shadow 0.22s;
+  overflow:hidden;
+}
+.note-cluster .pc-photo .pc-img{
+  width:100%; height:100%;
+  background-size:cover;
+  background-position:center;
+  background-color:#e8e4dc;
+  border-radius:1px;
+}
+
+/* Tiny "folder count" badge on the front polaroid — like a Finder
+   folder count, signals "there are way more photos in here than
+   the few you see". */
+.note-cluster .pc-count{
+  position:absolute;
+  right:-8px; top:-8px;
+  z-index:5;
+  background:#2b2820;
+  color:#fff;
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:0.04em;
+  padding:3px 7px;
+  border-radius:999px;
+  border:1.5px solid #fff;
+  box-shadow:0 2px 5px rgba(0,0,0,0.25);
+  pointer-events:none;
+  font-variant-numeric:tabular-nums;
+  display:flex; align-items:center; gap:3px;
+}
+.note-cluster .pc-count .pc-count-ico{
+  font-size:9px;
+}
+
+/* SVG link layer — sits ABOVE the photo stack but BELOW the sticky
+   note, so the dashed line appears to connect them. */
+.note-cluster .nc-link{
+  position:absolute;
+  inset:0;
+  width:100%; height:100%;
+  pointer-events:none;
+  overflow:visible;
+  z-index:1;
+}
+.note-cluster .nc-link path{
+  fill:none;
+  stroke:#9a9080;
+  stroke-width:1.4;
+  stroke-dasharray:5 4;
+  stroke-linecap:round;
+  opacity:0.7;
+  stroke-dashoffset:0;
+  transition:opacity 0.22s, stroke 0.22s, stroke-dashoffset 0.22s;
+}
+
+/* The sticky note itself — now a real <button>, positioned on the
+   OPPOSITE side of the cluster from the photo stack. Position is
+   set inline via --memo-x / --memo-y so a single CSS rule covers
+   both layouts. Click → opens the full chat modal for this question. */
+.example-memo{
+  position:absolute;
+  left:var(--memo-x, 50%);
+  top:var(--memo-y, 50%);
+  transform:translate(-50%, -50%);
+  width:var(--memo-w, 180px);
+  min-height:var(--memo-h, 160px);
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:stretch;
+  text-align:center;
+  padding:18px 16px;
+  /* Clean flat colour — exactly the Figma paper hex, no overlay
+     gradients (those tinted the saturated FigJam colours muddy).
+     FigJam stickies are flat squares, not paper-texture cards. */
+  background:var(--paper, #FFE299);
+  color:#1f1d18;
+  border:none;
+  border-radius:4px;
+  /* One soft drop shadow — same vibe as real FigJam stickies. */
+  box-shadow:
+    0 1px 2px rgba(34,30,20,0.08),
+    0 4px 10px rgba(34,30,20,0.10);
+  cursor:pointer;
+  overflow:visible;       /* name tag pokes outside the note */
+  transition:box-shadow 0.22s, transform 0.22s;
+  font:inherit;
+  font-family:'DM Sans', sans-serif;
+  margin:0;
+  z-index:2;              /* above the SVG link layer */
+}
+.example-memo:focus-visible{
+  outline:none;
+  box-shadow:
+    0 2px 4px rgba(34,30,20,0.10),
+    0 12px 24px rgba(34,30,20,0.16),
+    0 0 0 3px rgba(42,99,16,0.45);
+}
+
+/* NAME TAG — written in marker handwriting on the board, NOT a
+   speech-bubble (we don't want to look like Miro). Each name has:
+     • A handwritten "Caveat" font with a slight per-note rotation
+       so it feels like the visitor scribbled it on the spot.
+     • A hand-drawn squiggle UNDERLINE (or overline, depending on
+       corner) rendered as an inline SVG background.
+     • A tiny sparkle character before/after the name, like the
+       writer was excited about who said it.
+   No background pill, no triangle pointer — just ink on the board. */
+.example-memo .name-tag{
+  position:absolute;
+  font-family:'Caveat', 'Marker Felt', cursive;
+  font-weight:700;
+  font-size:21px;
+  line-height:1;
+  color:#1a1812;
+  letter-spacing:0;
+  white-space:nowrap;
+  z-index:5;
+  pointer-events:none;
+  /* No bubble, no border. */
+  background:transparent;
+  border:none;
+  padding:3px 6px;
+  /* Hand-drawn squiggle underline (inline SVG, fits any width). */
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 8' preserveAspectRatio='none'><path d='M2 5 Q 15 1 30 4 T 60 4 T 90 4 T 118 4' stroke='%231a1812' stroke-width='1.8' fill='none' stroke-linecap='round'/></svg>");
+  background-repeat:no-repeat;
+  background-position:center bottom 0px;
+  background-size:100% 6px;
+  /* Add a sparkle to whichever side reads as the "writing start" */
+}
+/* Sparkle decorations on either side — small star-like glyph drawn
+   with another inline SVG so we don't depend on an emoji font. */
+.example-memo .name-tag::before,
+.example-memo .name-tag::after{
+  display:inline-block;
+  vertical-align:middle;
+  width:11px; height:11px;
+  background-repeat:no-repeat;
+  background-position:center;
+  background-size:contain;
+  /* Default to the four-point sparkle; positions override below. */
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><path d='M10 1 L11.5 8.5 L19 10 L11.5 11.5 L10 19 L8.5 11.5 L1 10 L8.5 8.5 Z' fill='%231a1812'/></svg>");
+  position:relative;
+  top:-2px;
+}
+.example-memo .name-tag::before{ content:''; margin-right:4px; }
+.example-memo .name-tag::after { content:''; margin-left:4px; opacity:0; }   /* default hide right one */
+.example-memo .name-tag.flip::before{ opacity:0; }
+.example-memo .name-tag.flip::after { opacity:1; }
+
+/* Tag positions — same four corners as before so the geometry of
+   the cluster still works, but the rotation is set per-position so
+   the handwriting looks tossed onto the board. */
+.example-memo .name-tag.pos-bl{
+  left:6px;  bottom:-28px;
+  transform:rotate(-5deg);
+  transform-origin:left center;
+}
+.example-memo .name-tag.pos-br{
+  right:6px; bottom:-28px;
+  transform:rotate(4deg);
+  transform-origin:right center;
+}
+.example-memo .name-tag.pos-tl{
+  left:6px;  top:-30px;
+  transform:rotate(-3deg);
+  transform-origin:left bottom;
+}
+.example-memo .name-tag.pos-tr{
+  right:6px; top:-30px;
+  transform:rotate(5deg);
+  transform-origin:right bottom;
+}
+
+/* Memo body — the question text (and, when the asker attached
+   reference photos, a small row of thumbs above it). Centred,
+   Miro-style. The visitor reads the question at a glance; clicking
+   opens the full chat in the modal. */
+.example-memo .memo-body{
+  width:100%;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
   gap:10px;
+}
+.example-memo .memo-body .mb-question{
+  font-size:14.5px;
+  line-height:1.36;
+  color:#2b2820;
+  font-weight:500;
+  letter-spacing:0.005em;
+  word-wrap:break-word;
+  hyphens:auto;
+  display:-webkit-box;
+  -webkit-line-clamp:7;
+  line-clamp:7;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+/* Inline reference photos — the asker's "I went somewhere like this
+   [image]" attachments. Shown right above the question text so it
+   reads as "the question is ABOUT these images". */
+.example-memo .memo-body .mb-refs{
+  display:flex;
+  gap:5px;
+  justify-content:center;
+  flex-wrap:wrap;
+}
+.example-memo .memo-body .mb-refs .mb-ref{
+  width:54px; height:54px;
+  border-radius:4px;
+  background:#fff;
+  border:1px solid rgba(0,0,0,0.10);
+  overflow:hidden;
+  box-shadow:0 1px 2px rgba(0,0,0,0.10);
+  position:relative;
+}
+.example-memo .memo-body .mb-refs .mb-ref img{
+  width:100%; height:100%; object-fit:cover; display:block;
+}
+.example-memo .memo-body .mb-refs .mb-ref::after{
+  /* small "📎" corner marker so visitors know these are ATTACHED to
+     the question (not the AI's answer). */
+  content:'📎';
+  position:absolute;
+  top:-6px; right:-6px;
+  font-size:10px;
+  background:#fff;
+  border-radius:50%;
+  width:16px; height:16px;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 1px 2px rgba(0,0,0,0.20);
+}
+
+/* Cluster size variants. Each variant sets the cluster size, the
+   sticky-note size, and the photo-stack size together. JS picks the
+   variant + which side (left/right) the photo stack is on. */
+.note-cluster.sz-sm{ --cluster-w:330px; --cluster-h:200px; --memo-w:150px; --memo-h:150px; --stack-size:110px; }
+.note-cluster.sz-md{ --cluster-w:380px; --cluster-h:230px; --memo-w:180px; --memo-h:170px; --stack-size:130px; }
+.note-cluster.sz-lg{ --cluster-w:430px; --cluster-h:260px; --memo-w:210px; --memo-h:190px; --stack-size:150px; }
+.note-cluster.sz-sm .example-memo{ padding:14px 12px; }
+.note-cluster.sz-md .example-memo{ padding:18px 16px; }
+.note-cluster.sz-lg .example-memo{ padding:20px 18px; }
+.note-cluster.sz-sm .example-memo .memo-body .mb-question{ font-size:13px; -webkit-line-clamp:6; line-clamp:6; }
+.note-cluster.sz-md .example-memo .memo-body .mb-question{ font-size:14.5px; }
+.note-cluster.sz-lg .example-memo .memo-body .mb-question{ font-size:15.5px; -webkit-line-clamp:8; line-clamp:8; }
+/* When the note has attached photos, slightly more line-clamp room
+   for the question and tighter ref tile size on small notes. */
+.note-cluster.sz-sm .example-memo .memo-body .mb-refs .mb-ref{ width:44px; height:44px; }
+.note-cluster.sz-sm .example-memo .memo-body .mb-question.has-refs{ -webkit-line-clamp:4; line-clamp:4; }
+.note-cluster.sz-md .example-memo .memo-body .mb-question.has-refs{ -webkit-line-clamp:5; line-clamp:5; }
+.note-cluster.sz-lg .example-memo .memo-body .mb-question.has-refs{ -webkit-line-clamp:6; line-clamp:6; }
+
+/* Loading state — a placeholder line shown briefly while memos are
+   being constructed (so the board isn't blank on first paint). */
+.example-board.loading::before{
+  content:'pinning examples to the board…';
+  font-size:11.5px; letter-spacing:0.06em;
+  color:var(--text-faint);
+  align-self:center;
+  margin:auto;
+}
+
+/* ── CENTRAL PROMPT — the question that all the sticky notes are
+   answering. Sits at the centre of the board (in canvas coords),
+   pans WITH the board (so visitors can pan away and come back). */
+.board-prompt{
+  position:absolute;
+  width:480px;
+  text-align:center;
+  font-family:'DM Sans', sans-serif;
+  color:#1a1812;
+  pointer-events:none;        /* never blocks dragging the board */
+  z-index:2;
+}
+.board-prompt .bp-eyebrow{
+  font-size:11px; letter-spacing:0.16em; text-transform:uppercase;
+  color:rgba(26,24,18,0.55);
+  font-weight:700;
+  margin-bottom:10px;
+}
+.board-prompt .bp-q{
+  font-size:30px;
+  line-height:1.18;
+  font-weight:600;
+  letter-spacing:-0.01em;
+  color:#1a1812;
+}
+.board-prompt .bp-q .bp-accent{
+  /* Real highlighter yellow — looks like the visitor took a yellow
+     marker to the page. Layered gradient gives it a hand-streaked
+     vibe so it doesn't read as a flat box. */
+  background:
+    linear-gradient(180deg,
+      rgba(255,232,0,0.10) 0%,
+      rgba(255,232,0,0.95) 18%,
+      rgba(255,232,0,0.95) 78%,
+      rgba(255,232,0,0.10) 100%),
+    #fff05a;
+  padding:0 8px;
+  border-radius:3px;
+  /* Wraps each line break cleanly so the highlight reads as separate
+     marker strokes if the accent ever spans multiple lines. */
+  box-decoration-break:clone;
+  -webkit-box-decoration-break:clone;
+}
+.board-prompt .bp-sub{
+  margin-top:14px;
+  font-size:13px;
+  color:rgba(26,24,18,0.6);
+  font-style:italic;
+}
+@media (max-width: 720px){
+  .board-prompt{ width:320px; }
+  .board-prompt .bp-q{ font-size:22px; }
+}
+
+/* Soft "drop onto the board" animation when each note cluster first
+   appears. The cluster (not the inner memo) is what's rotated, so
+   the animation targets the cluster. */
+.note-cluster.just-pinned{
+  animation:memo-pin-in 0.42s cubic-bezier(0.22, 0.9, 0.3, 1);
+}
+@keyframes memo-pin-in{
+  from { opacity:0; transform:rotate(0deg) translateY(-14px) scale(0.94); }
+  /* `to` deliberately omitted — animation ends at the element's
+     static rotate(var(--cluster-tilt)), so the cluster settles into
+     its tilted resting pose. */
+}
+
+/* ── EXAMPLE MODAL — full-size chat opens here ───────────────── */
+.example-modal{
+  position:fixed; inset:0;
+  z-index:300;
+  display:none;
+  align-items:flex-start; justify-content:center;
+  background:rgba(0,0,0,0.62);
+  padding:5vh 4vw;
+  overflow-y:auto;
+  backdrop-filter:blur(4px);
+  -webkit-backdrop-filter:blur(4px);
+}
+.example-modal.open{
+  display:flex;
+  animation:em-backdrop-in 0.18s ease-out;
+}
+@keyframes em-backdrop-in{
+  from { opacity:0; }
+  to   { opacity:1; }
+}
+.example-modal-card{
+  position:relative;
+  width:100%;
+  max-width:780px;
+  /* Whole card is a VERY pale wash of the sticky note's colour
+     (~18% paper / 82% white). Gives a continuous feeling — like
+     this pop-out IS the sticky note, just zoomed in. The richer
+     band at the top (see ::before) reinforces the connection. */
+  background:color-mix(in srgb, var(--em-paper, #f6f5f1) 18%, #ffffff);
+  border:1px solid color-mix(in srgb, var(--em-paper, #f6f5f1) 55%, #cdc8be);
+  border-radius:14px;
+  box-shadow:0 24px 60px rgba(0,0,0,0.45), 0 4px 16px rgba(0,0,0,0.18);
+  padding:28px 18px 26px;
+  margin-bottom:5vh;
+  animation:em-card-in 0.22s cubic-bezier(0.22, 0.9, 0.3, 1);
+  /* Per-note theme: when the visitor clicks a sticky note we set
+     --em-paper / --em-tag on the modal (see openExampleModal) so
+     the card visually echoes the note they came from. Falls back
+     to neutral if not set. */
+  --em-paper:#f6f5f1;
+  --em-tag:#ffffff;
+  overflow:hidden;       /* clip the top sash inside the rounded card */
+  /* The board is always light, and so is this pop-out. Pin the
+     text/border tokens to LIGHT-THEME values inside the modal so
+     the chat content stays readable regardless of whether the user
+     has dark mode on globally. */
+  --bg:            #ffffff;
+  --bg-elev:       transparent;
+  --bg-elev-2:     rgba(0,0,0,0.04);
+  --bg-elev-3:     rgba(0,0,0,0.07);
+  --border:        rgba(0,0,0,0.10);
+  --border-strong: rgba(0,0,0,0.30);
+  --text:          #1a1812;
+  --text-mid:      #2a2620;
+  --text-soft:     #4a443a;
+  --text-dim:      #6a6258;
+  --text-faint:    #8a8278;
+  --text-ghost:    #b5ad9f;
+  --shadow:        rgba(0,0,0,0.10);
+  --scrollbar:     rgba(0,0,0,0.18);
+}
+/* Stronger band at the very top of the card — about 55% of the
+   note's colour, fading into the card's pale wash. Reads as "the
+   sticky note expanded into a card". */
+.example-modal-card::before{
+  content:'';
+  position:absolute;
+  left:0; right:0; top:0;
+  height:90px;
+  background:linear-gradient(180deg,
+    color-mix(in srgb, var(--em-paper, #f6f5f1) 70%, #ffffff) 0%,
+    color-mix(in srgb, var(--em-paper, #f6f5f1) 35%, #ffffff) 60%,
+    transparent 100%);
+  pointer-events:none;
+  z-index:0;
+}
+@keyframes em-card-in{
+  from { opacity:0; transform:translateY(10px) scale(0.985); }
+  to   { opacity:1; transform:translateY(0)    scale(1); }
+}
+.example-modal-close{
+  position:absolute;
+  top:14px; right:14px;
+  width:32px; height:32px;
+  border-radius:50%;
+  border:1.5px solid rgba(0,0,0,0.35);
+  background:#ffffff;
+  color:#2b2820;
+  font-size:16px; line-height:1;
+  font-weight:600;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer;
+  z-index:4;
+  box-shadow:0 2px 6px rgba(0,0,0,0.18);
+  transition:background 0.15s, color 0.15s, border-color 0.15s, transform 0.15s;
+}
+.example-modal-close:hover{
+  background:#2b2820;
+  color:#fff;
+  border-color:#2b2820;
+  transform:scale(1.08);
+}
+/* Eyebrow row sits inside the paper sash → looks like a tag
+   stitched onto the note. */
+.example-modal-eyebrow{
+  position:relative;
+  z-index:1;
+  display:inline-flex; align-items:center; gap:8px;
+  font-size:11px; letter-spacing:0.10em; text-transform:uppercase;
+  color:#2b2820;
+  margin-bottom:18px;
+  padding:6px 12px 6px 10px;
+  background:var(--em-tag, #ffffff);
+  border:1.5px solid rgba(0,0,0,0.35);
+  border-radius:999px;
+  font-weight:700;
+  box-shadow:0 2px 4px rgba(0,0,0,0.10);
+  max-width:calc(100% - 50px);
+}
+.example-modal-eyebrow .em-dot{
+  width:7px; height:7px; border-radius:50%;
+  background:#2b2820;
+  box-shadow:none;
+  flex:none;
+}
+#example-modal-eyebrow-label{
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+/* Make sure the modal body sits ABOVE the sash gradient. */
+#example-modal-body{
+  position:relative;
+  z-index:1;
+}
+/* The modal hosts a FULL-SIZE finalized .turn card. INSIDE the modal
+   we don't want a card-in-a-card look — the modal IS the container,
+   so we strip the .turn's own background / border / padding shell
+   and let the chat content sit flush against the modal card. */
+.example-modal-card .turn.example{
+  margin:0 auto;
+  max-width:720px;
+  background:transparent;
+  border:none;
+  border-radius:0;
+  box-shadow:none;
+  padding:8px 0 0 0;        /* small top breathing room under the eyebrow pill */
+  animation:none;
+}
+/* The chip-style speaker header that floats on top of the .turn card
+   is redundant inside the modal — the eyebrow pill already names the
+   speaker. Hide it so the modal reads as one clean surface. */
+.example-modal-card .turn.example .turn-header{
+  display:none;
+}
+/* Active-turn glow doesn't apply in a static modal view. */
+.example-modal-card .turn.example.searching{
+  border-color:transparent;
+  box-shadow:none;
+}
+
+/* ── VISITOR STICKY NOTE — for "you" turns ─────────────────────
+   The visitor's own questions land as their OWN Miro-style sticky
+   notes on the same board. Same shape + tag style as example
+   memos, just with a distinctive "you" colour palette + a small
+   YOU tag instead of a fake name. */
+.you-note{
+  position:absolute;
+  width:200px;
+  min-height:160px;
+  padding:18px 16px;
+  background:var(--paper, #d8e7c5);
+  color:#1c2014;
+  border:none;
+  border-radius:2px;
+  background-image:
+    linear-gradient(135deg, rgba(255,255,255,0.35) 0%, transparent 18%),
+    linear-gradient(315deg, rgba(0,0,0,0.07)  0%, transparent 22%);
+  box-shadow:
+    0 1px 1px rgba(0,0,0,0.10),
+    0 8px 18px rgba(0,0,0,0.14),
+    0 2px 4px rgba(0,0,0,0.08);
+  transform:rotate(var(--memo-tilt, 0deg));
+  transition:transform 0.22s cubic-bezier(0.22, 0.9, 0.3, 1),
+             box-shadow 0.22s;
+  font-family:'DM Sans', sans-serif;
+  display:flex; flex-direction:column; gap:10px;
+  text-align:center;
+  align-items:center;
+  justify-content:center;
+}
+.you-note:hover{
+  transform:rotate(0deg) translateY(-4px) scale(1.04);
+  z-index:30;
+  box-shadow:
+    0 1px 1px rgba(0,0,0,0.10),
+    0 18px 32px rgba(0,0,0,0.20),
+    0 4px 10px rgba(0,0,0,0.12);
+}
+/* YOU name-tag — same speech-bubble shape as example memos, fixed
+   bottom-left, with a "you" accent colour so visitor notes stand out. */
+.you-note .yn-tag{
+  position:absolute;
+  left:-6px; bottom:-22px;
+  font-size:11px; font-weight:700;
+  color:#0e1206;
+  background:#c8f060;
+  border:1.5px solid #0e1206;
+  border-radius:999px;
+  padding:4px 11px;
+  letter-spacing:0.05em;
+  text-transform:uppercase;
+  z-index:5;
+  pointer-events:none;
+}
+.you-note .yn-tag::after{
+  content:'';
+  position:absolute;
+  top:-10px; left:14px;
+  width:0; height:0;
+  border:6px solid transparent;
+  border-bottom-color:#0e1206;
+}
+.you-note .yn-text{
+  font-size:14px; line-height:1.36;
+  color:#0e1206;
+  font-weight:500;
+  word-wrap:break-word;
+  display:-webkit-box;
+  -webkit-line-clamp:8;
+  line-clamp:8;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+.you-note .yn-thumbs{
+  display:flex; flex-wrap:wrap; gap:4px;
+  justify-content:center;
+}
+.you-note .yn-thumbs img{
+  width:36px; height:36px; object-fit:cover;
+  border-radius:3px;
+  border:1px solid rgba(0,0,0,0.15);
+  background:#fff;
+}
+.you-note .yn-status{
+  font-size:10px; color:rgba(14,18,6,0.65);
+  letter-spacing:0.03em;
+  display:flex; align-items:center; gap:5px;
+  justify-content:center;
+}
+.you-note .yn-status .yn-spin{
+  width:10px; height:10px; border-radius:50%;
+  border:1.5px solid rgba(14,18,6,0.25);
+  border-top-color:rgba(14,18,6,0.75);
+  animation:yn-spin 0.7s linear infinite;
+}
+.you-note.saved .yn-spin{ display:none; }
+.you-note.saved .yn-tag{
+  background:#2a6310;
+  color:#ffffff;
+  border-color:#2a6310;
+}
+.you-note.saved .yn-tag::after{ border-bottom-color:#2a6310; }
+@keyframes yn-spin{ to { transform:rotate(360deg); } }
+.you-note.just-pinned{
+  animation:memo-pin-in 0.42s cubic-bezier(0.22, 0.9, 0.3, 1);
+}
+
+/* Mobile: smaller clusters all around. */
+@media (max-width: 720px){
+  .note-cluster.sz-sm{ --cluster-w:280px; --cluster-h:170px; --memo-w:130px; --memo-h:130px; --stack-size:90px;  }
+  .note-cluster.sz-md{ --cluster-w:310px; --cluster-h:190px; --memo-w:150px; --memo-h:140px; --stack-size:105px; }
+  .note-cluster.sz-lg{ --cluster-w:340px; --cluster-h:210px; --memo-w:170px; --memo-h:160px; --stack-size:120px; }
+  .note-cluster.sz-sm .example-memo .memo-body .mb-question{ font-size:12px; }
+  .note-cluster.sz-md .example-memo .memo-body .mb-question{ font-size:13px; }
+  .note-cluster.sz-lg .example-memo .memo-body .mb-question{ font-size:14px; }
+  .example-modal{ padding:3vh 3vw; }
+  .example-modal-card{ padding:24px 12px 22px; }
+}
+
+/* ── DARK MODE OVERRIDES FOR THE BOARD ─────────────────────────
+   Sticky notes stay in their FigJam pastel colours (those are the
+   "ink" of the board and should pop in both themes), but the board
+   surface, dotted grid, central prompt, hand-scribble names, and
+   little affordance pills all flip to a dark palette so the page
+   doesn't look broken when the visitor toggles to dark mode. */
+:root[data-theme="dark"] .thread{
+  background:#15140f;          /* warm near-black, matches the warm light cream surface */
+}
+:root[data-theme="dark"] .thread::before{
+  background-image:
+    radial-gradient(rgba(255,255,255,0.10) 1px, transparent 1px);
+  opacity:0.7;
+}
+:root[data-theme="dark"] .board-hint{
+  color:#f6f2e8;
+  background:rgba(36,33,26,0.92);
+  border-color:rgba(255,255,255,0.10);
+  box-shadow:0 2px 10px rgba(0,0,0,0.5);
+}
+:root[data-theme="dark"] .board-hint .bh-dot{
+  background:#c8f060;
+  box-shadow:0 0 6px rgba(200,240,96,0.55);
+}
+/* Central prompt — flip text colours to cream. */
+:root[data-theme="dark"] .board-prompt{
+  color:#f6f2e8;
+}
+:root[data-theme="dark"] .board-prompt .bp-eyebrow{
+  color:rgba(246,242,232,0.55);
+}
+:root[data-theme="dark"] .board-prompt .bp-q{
+  color:#f6f2e8;
+}
+/* Highlighter accent stays vibrant yellow; just lock the text colour
+   inside it to dark so the yellow reads as a real highlight. */
+:root[data-theme="dark"] .board-prompt .bp-q .bp-accent{
+  color:#1a1812;
+}
+:root[data-theme="dark"] .board-prompt .bp-sub{
+  color:rgba(246,242,232,0.6);
+}
+/* Hand-scribbled name on each note — re-ink in cream so it shows up
+   against the dark board. Both the text colour AND the inline SVG
+   underline / sparkle (which have hardcoded dark fills) get swapped
+   for cream versions. */
+:root[data-theme="dark"] .example-memo .name-tag{
+  color:#f6f2e8;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 8' preserveAspectRatio='none'><path d='M2 5 Q 15 1 30 4 T 60 4 T 90 4 T 118 4' stroke='%23f6f2e8' stroke-width='1.8' fill='none' stroke-linecap='round'/></svg>");
+}
+:root[data-theme="dark"] .example-memo .name-tag::before,
+:root[data-theme="dark"] .example-memo .name-tag::after{
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><path d='M10 1 L11.5 8.5 L19 10 L11.5 11.5 L10 19 L8.5 11.5 L1 10 L8.5 8.5 Z' fill='%23f6f2e8'/></svg>");
+}
+/* Dashed connector line between sticky and photo stack — switch to
+   a soft cream so it stays visible against the dark board. */
+:root[data-theme="dark"] .note-cluster .nc-link path{
+  stroke:#a39d8e;
+}
+/* "open camera roll" pill — already dark-on-white so it reads on
+   both themes, but bump contrast just slightly for the dark board. */
+:root[data-theme="dark"] .note-cluster .pc-stack::after{
+  background:#f6f2e8;
+  color:#1a1812;
+  box-shadow:0 4px 12px rgba(0,0,0,0.55);
+}
+/* Photo-count badge on the stack — flip border to dark so the white
+   ring doesn't glow against the dark board. */
+:root[data-theme="dark"] .note-cluster .pc-count{
+  border-color:#15140f;
+}
+/* Visitor "you" notes use the green accent — make sure the pin
+   shadow reads on the dark board. */
+:root[data-theme="dark"] .you-note{
+  box-shadow:
+    0 1px 1px rgba(0,0,0,0.25),
+    0 10px 24px rgba(0,0,0,0.45),
+    0 2px 6px rgba(0,0,0,0.25);
+}
+/* Make the sticky-note shadow a touch heavier on dark so the notes
+   look like they're floating above the board instead of glued flat. */
+:root[data-theme="dark"] .example-memo{
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.40),
+    0 8px 20px rgba(0,0,0,0.45);
+}
+:root[data-theme="dark"] .note-cluster .example-memo:hover{
+  box-shadow:
+    0 2px 4px rgba(0,0,0,0.45),
+    0 16px 32px rgba(0,0,0,0.55);
 }
 
 /* ── CAMERA-ROLL FOLDER CHIP — sits in a turn's gutter (left or right)
@@ -1213,19 +2131,53 @@ body.drag-over .chatbar{
 <!-- Slim top header bar -->
 <div class="header">
   <span class="title">camroll · <strong>question collection</strong></span>
-  <span class="sub">camroll connects to your camera roll and answers questions about it — see how it works below, then ask your own ↓</span>
+  <span class="sub">brainstorm board · click any sticky note to read the full chat · drop your own question below ↓</span>
   <button class="refresh-btn" onclick="reshuffle()" title="Show 3 different example conversations">↻ shuffle examples</button>
   <button class="theme-toggle" title="Toggle theme" onclick="toggleTheme()">
     <span class="icon-dark">☀</span><span class="icon-light">☾</span>
   </button>
 </div>
 
-<!-- Single chat thread. Each example user's question carries a small
-     "📁 album folder" chip beside it — the search animation plays
-     INSIDE that chip and the matched photos fly out of it into the AI
-     reply below. -->
+<!-- Main board. Everything (example memos AND visitor "you" notes)
+     lives as scattered sticky notes on the #board-canvas inside this
+     pannable viewport. Drag the empty space to move the camera. -->
 <div class="thread" id="thread">
+  <div class="board-canvas" id="board-canvas">
+    <!-- Central prompt — the question every sticky note is answering.
+         Lives in canvas coords so it pans with the board. Position is
+         set by JS so it sits at BOARD_W/2, BOARD_H/2. -->
+    <div class="board-prompt" id="board-prompt">
+      <div class="bp-eyebrow">camroll · question collection</div>
+      <div class="bp-q">If an AI assistant could<br>access your <span class="bp-accent">camera roll</span>,<br>what would you ask?</div>
+      <div class="bp-sub">drop your question on the board — see what others have asked around it</div>
+    </div>
+    <!-- Example memo notes and visitor "you" notes are injected here
+         at random positions by the renderer. -->
+    <div class="example-board" id="example-board" style="display:contents"></div>
+  </div>
+  <!-- Legacy node kept for any compatibility queries; hidden via CSS. -->
   <div class="thread-inner" id="thread-inner"></div>
+</div>
+
+<!-- First-paint affordance so visitors know the board is pannable. -->
+<div class="board-hint" id="board-hint">
+  <span class="bh-dot"></span>
+  <span>drag the board to look around · scroll to pan</span>
+</div>
+
+<!-- Modal overlay shown when a memo is clicked. The full-size chat
+     turn is injected into #example-modal-body by openExampleModal(). -->
+<div class="example-modal" id="example-modal" role="dialog"
+     aria-modal="true" aria-labelledby="example-modal-eyebrow-label" hidden>
+  <div class="example-modal-card" id="example-modal-card">
+    <button class="example-modal-close" id="example-modal-close" type="button"
+            title="Close (Esc)" aria-label="Close">✕</button>
+    <div class="example-modal-eyebrow" id="example-modal-eyebrow">
+      <span class="em-dot"></span>
+      <span id="example-modal-eyebrow-label">Example chat</span>
+    </div>
+    <div id="example-modal-body"></div>
+  </div>
 </div>
 
 <div class="chatbar-wrap">
@@ -1603,11 +2555,11 @@ const PHOTO_POOL = /*POOL_START*/[
 // ─────────────────────────────────────────────────────────────
 // State
 // ─────────────────────────────────────────────────────────────
-//   SCENE             → [{ task, riffle: [photo,…], matched: [photo,…], totalCount: N }]
-//                       riffle  = small sample of thumbs we flip through inside the folder chip
-//                       matched = the actual photos that fly out into the AI reply
-//                       totalCount = the BIG fake "album size" to display on the folder badge
-//   SEQUENCER_RUN_ID  → bump on every reshuffle / reset so in-flight async play loops can bail
+//   SCENE             → [{ task, riffle, matched, totalCount, … }] — one
+//                       entry per example chat the visitor will see.
+//   SEQUENCER_RUN_ID  → bump on every reshuffle so any in-flight async
+//                       work (e.g. an open modal) knows to bail.
+//   CONTRIB_COUNT     → how many "you" questions the visitor has saved.
 let SCENE = [];
 let SEQUENCER_RUN_ID = 0;
 let CONTRIB_COUNT = 0;
@@ -1627,19 +2579,178 @@ async function boot(){
     // (no real YFCC binding, no clickable albums).
     console.warn('YFCC manifest failed to load:', e);
   }
+  initExampleModalControls();
+  initBoardPan();
   reshuffle();
   initForm();
 }
 
+// ─────────────────────────────────────────────────────────────
+// BOARD PAN — drag-to-pan the limitless board.
+//   • Mousedown on the empty board (NOT on a sticky note) starts a pan.
+//   • Move dx/dy applies to the canvas transform.
+//   • Mouse wheel pans (shift-wheel = horizontal).
+//   • Touch drag works the same.
+//   • Click events that started as a drag don't propagate to notes,
+//     so dragging across a memo doesn't accidentally open it.
+// ─────────────────────────────────────────────────────────────
+let BOARD_PAN = { x: 0, y: 0 };
+let BOARD_HINT_HIDDEN = false;
+const BOARD_W = 8000, BOARD_H = 6000;
+
+function applyBoardTransform(){
+  const c = document.getElementById('board-canvas');
+  if (!c) return;
+  c.style.transform = 'translate(' + BOARD_PAN.x + 'px, ' + BOARD_PAN.y + 'px)';
+}
+
+function clampBoardPan(){
+  // Allow the visitor to push the camera a generous amount past the
+  // canvas edges so the board feels limitless, but don't let them lose
+  // every note offscreen at once.
+  const t = document.getElementById('thread');
+  if (!t) return;
+  const vw = t.clientWidth;
+  const vh = t.clientHeight;
+  const slack = 600;
+  const minX = -(BOARD_W - vw + slack);
+  const maxX = slack;
+  const minY = -(BOARD_H - vh + slack);
+  const maxY = slack;
+  BOARD_PAN.x = Math.max(minX, Math.min(maxX, BOARD_PAN.x));
+  BOARD_PAN.y = Math.max(minY, Math.min(maxY, BOARD_PAN.y));
+}
+
+function fadeBoardHint(){
+  if (BOARD_HINT_HIDDEN) return;
+  BOARD_HINT_HIDDEN = true;
+  const h = document.getElementById('board-hint');
+  if (!h) return;
+  h.classList.add('faded');
+  // Fully remove from layout after fade so it doesn't catch any events.
+  setTimeout(() => { if (h.parentNode) h.parentNode.removeChild(h); }, 600);
+}
+
+// Centre the camera on the central prompt — that's the anchor of
+// the whole board (the question every sticky note is answering), so
+// landing the visitor's view on it gives them the right context
+// regardless of where individual notes scattered.
+function centerBoardOnContent(){
+  const t = document.getElementById('thread');
+  if (!t) return;
+  // The central prompt is positioned at (BOARD_W/2, BOARD_H/2)
+  // (see positionCentralPrompt) — pan so that point sits at the
+  // viewport's middle, with a slight vertical bias toward the top
+  // so the floating chatbar doesn't visually crowd the cluster.
+  BOARD_PAN.x = t.clientWidth  * 0.5  - BOARD_W / 2;
+  BOARD_PAN.y = t.clientHeight * 0.45 - BOARD_H / 2;
+  clampBoardPan();
+  applyBoardTransform();
+}
+
+function initBoardPan(){
+  const thread = document.getElementById('thread');
+  const canvas = document.getElementById('board-canvas');
+  if (!thread || !canvas) return;
+
+  let dragging = false;
+  let moved = false;
+  let startX = 0, startY = 0;
+  let basePanX = 0, basePanY = 0;
+  const DRAG_THRESHOLD = 4;
+
+  // Suppress click events on sticky notes if the visitor was dragging
+  // when they released — captures clicks during the capture phase so
+  // .example-memo's onclick never sees them.
+  thread.addEventListener('click', (ev) => {
+    if (moved) {
+      ev.stopPropagation();
+      ev.preventDefault();
+      moved = false;
+    }
+  }, true);
+
+  const onDown = (ev) => {
+    // Don't start a drag from inside a sticky note or any interactive
+    // element — those want their own click semantics.
+    const targetIsInteractive = ev.target.closest(
+      '.note-cluster, .example-memo, .you-note, button, a, input, textarea, .chatbar-wrap, .example-modal'
+    );
+    if (targetIsInteractive) return;
+    dragging = true;
+    moved = false;
+    startX = (ev.touches ? ev.touches[0].clientX : ev.clientX);
+    startY = (ev.touches ? ev.touches[0].clientY : ev.clientY);
+    basePanX = BOARD_PAN.x;
+    basePanY = BOARD_PAN.y;
+    thread.classList.add('panning');
+  };
+  const onMove = (ev) => {
+    if (!dragging) return;
+    const cx = (ev.touches ? ev.touches[0].clientX : ev.clientX);
+    const cy = (ev.touches ? ev.touches[0].clientY : ev.clientY);
+    const dx = cx - startX;
+    const dy = cy - startY;
+    if (!moved && Math.hypot(dx, dy) > DRAG_THRESHOLD) {
+      moved = true;
+      fadeBoardHint();
+    }
+    BOARD_PAN.x = basePanX + dx;
+    BOARD_PAN.y = basePanY + dy;
+    clampBoardPan();
+    applyBoardTransform();
+    if (ev.cancelable) ev.preventDefault();
+  };
+  const onUp = () => {
+    if (!dragging) return;
+    dragging = false;
+    thread.classList.remove('panning');
+  };
+
+  thread.addEventListener('mousedown', onDown);
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+  thread.addEventListener('touchstart', onDown, { passive: true });
+  window.addEventListener('touchmove', onMove, { passive: false });
+  window.addEventListener('touchend', onUp);
+
+  // Wheel pans the board (no zoom for now — keeps it simple). Shift +
+  // wheel = horizontal pan, which matches trackpad expectations.
+  thread.addEventListener('wheel', (ev) => {
+    // Only intercept when the wheel happens over empty board, not over
+    // a sticky note (so reading a long note inside the modal keeps
+    // working normally).
+    if (ev.target.closest('.example-modal')) return;
+    ev.preventDefault();
+    const horiz = ev.shiftKey;
+    if (horiz) {
+      BOARD_PAN.x -= ev.deltaY + ev.deltaX;
+    } else {
+      BOARD_PAN.x -= ev.deltaX;
+      BOARD_PAN.y -= ev.deltaY;
+    }
+    clampBoardPan();
+    applyBoardTransform();
+    fadeBoardHint();
+  }, { passive: false });
+
+  // Initial position.
+  centerBoardOnContent();
+  window.addEventListener('resize', () => {
+    clampBoardPan();
+    applyBoardTransform();
+  });
+}
+
 function reshuffle(){
-  // Cancel any in-flight playback, then rebuild + replay.
+  // Bump the run id so any open modal / pending work knows to bail.
   SEQUENCER_RUN_ID += 1;
   buildScene();
-  // Wipe just the example turns, keep the visitor's contributions.
-  const inner = document.getElementById('thread-inner');
-  inner.querySelectorAll('.turn.example').forEach(el => el.remove());
-  // Run the auto-play; insert each example turn just before any "you" turns.
-  playSequence(SEQUENCER_RUN_ID);
+  // If the modal happened to be open for an old example, close it —
+  // the new SCENE has different indices and the open card wouldn't
+  // match anymore.
+  closeExampleModal();
+  renderPinBoard();
 }
 
 // Boot-time form init runs once.
@@ -1658,15 +2769,17 @@ function initForm(){
 // We also pick a fake but believable "total album size" to show on
 // the folder badge (e.g. "📷 412") so the folder feels personal.
 // ─────────────────────────────────────────────────────────────
-const NUM_EXAMPLES   = 3;     // how many conversations to play in the reel
+// Show ALL example tasks scattered on the board — this is a corkboard,
+// not a 3-slot carousel anymore. The visitor can pan around to find
+// the ones that catch their eye.
 const RIFFLE_SAMPLE  = 12;    // how many distinct thumbs to riffle through
 
 function buildScene(){
   SCENE = [];
 
-  // Pick a random subset of example tasks for this reel.
-  const shuffled = EXAMPLE_TASKS.slice().sort(() => Math.random() - 0.5);
-  const tasks = shuffled.slice(0, NUM_EXAMPLES);
+  // Show ALL example tasks, in randomised order so a reshuffle
+  // re-scatters them with fresh positions/colors.
+  const tasks = EXAMPLE_TASKS.slice().sort(() => Math.random() - 0.5);
 
   // Bind each task to a DISTINCT real YFCC user (so the speaker name,
   // preview thumbs, and clickable album are all the same person). If
@@ -1809,36 +2922,666 @@ async function streamText(el, text, opts){
 }
 
 // ─────────────────────────────────────────────────────────────
-// SEQUENCER — auto-play the example conversations one at a time.
-// Each step (per turn):
-//   1. Append the user's message + an inline FOLDER CHIP for their album
-//      (typing dots first, then the text + folder slide in).
-//   2. Append a "thinking…" AI bubble; flip the folder into "searching"
-//      mode (it lifts, gets a green ring, riffles through thumbnails,
-//      a scan line sweeps over it).
-//   3. Replace the thinking bubble with the real answer; clone matched
-//      photos out of the folder and fly them into the AI bubble's
-//      retrieved-photos strip.
-//   4. Folder calms down into a "done · N photos" state.
+// SEQUENCER — build all 3 example cards in their FINAL (fully
+// revealed) state up-front. No typewriter, no search animation, no
+// fly-out — the page just renders 3 already-finished chats, side by
+// side, with the active one in focus and the other two as dimmed
+// peeks the visitor can click to bring into focus.
+//
+// This is deliberately simple now (vs. the old per-card animation
+// orchestration). The cards are already "tab-like": they show the
+// final state immediately, the visitor just picks which one to look
+// at. The fade-in on the active card is handled by CSS.
 // ─────────────────────────────────────────────────────────────
-async function playSequence(runId){
-  for (let i = 0; i < SCENE.length; i++) {
-    if (runId !== SEQUENCER_RUN_ID) return;
-    // All folder chips live in the LEFT gutter for visual consistency
-    // (so the eye always knows where the camera roll is).
-    const side = 'left';
-    await playOneTurn(SCENE[i], side, runId);
-    await sleep(900);
-  }
+// ─────────────────────────────────────────────────────────────
+// PIN BOARD RENDERER
+//
+// Render the current SCENE as 3 MEMO cards on the corkboard. Each
+// memo contains a shrunk-down version of the full chat (so the
+// visitor can see what's in there at a glance) and is clickable —
+// click → opens that example in a full-size modal overlay.
+// ─────────────────────────────────────────────────────────────
+
+// Figma sticky-note palette — the standard set Figma uses for FigJam
+// stickies. Each entry is { paper, tag } where the tag colour is a
+// lighter wash of the same hue so the speaker name-pill blends with
+// its note while staying readable. White + grey are intentionally
+// excluded (they wash out on the light board background).
+const PAPER_COLORS = [
+  { paper:'#FFE299', tag:'#FFF1CC' },    // yellow
+  { paper:'#FFD3A8', tag:'#FFE9D4' },    // orange
+  { paper:'#FFB8A8', tag:'#FFDCD4' },    // red
+  { paper:'#FFA8DB', tag:'#FFD4ED' },    // pink
+  { paper:'#D3BDFF', tag:'#E9DEFF' },    // violet
+  { paper:'#A8DAFF', tag:'#D4EDFF' },    // blue
+  { paper:'#B3F4EF', tag:'#D9FAF7' },    // teal
+  { paper:'#B3EFBD', tag:'#D9F7DE' },    // green
+];
+
+// Note-size variety classes. Mostly md, sprinkles of sm + lg, so the
+// board has visual rhythm without looking chaotic.
+const SIZE_CLASSES = ['sz-sm', 'sz-md', 'sz-md', 'sz-md', 'sz-lg'];
+// Where the speaker name-tag sits relative to its note.
+const TAG_POSITIONS = ['pos-bl', 'pos-br', 'pos-tl', 'pos-tr'];
+
+// Tracks every note's bounding rect for the current reshuffle so we
+// can drop the next note in a place that doesn't overlap an existing
+// one. Each entry is { x, y, w, h } in canvas coordinates.
+let BOARD_PLACED = [];
+
+// Random integer in [a, b].
+function randBetween(a, b){ return a + Math.random() * (b - a); }
+function randInt(a, b){ return Math.floor(randBetween(a, b + 1)); }
+
+// Pick a random tilt in degrees within a comfortable range so notes
+// look hand-pinned (not gridded, not absurdly rotated).
+function randomTilt(){
+  // Bias toward small tilts; occasional bigger ones.
+  const sign = Math.random() < 0.5 ? -1 : 1;
+  const mag = Math.random() < 0.7
+    ? randBetween(0.6, 3.2)
+    : randBetween(3.2, 6.0);
+  return (sign * mag).toFixed(2) + 'deg';
 }
 
-async function playOneTurn(node, side, runId){
+// Pick a random spot on the canvas for a note of the given size,
+// SCATTERED IN A RING around the central prompt.
+//
+// To get an even distribution all the way around the centre (vs. a
+// uniformly-random angle which clumps with high variance at small
+// N), the caller can pass an `angleSlot` (e.g., i out of N): we then
+// confine the angle search to that slot's sector and jitter inside
+// it. This gives a perfectly balanced ring whether there are 5 or
+// 50 notes.
+function pickRandomBoardPosition(width, height, opts){
+  opts = opts || {};
+  const pad = opts.pad || 14;
+  const cx = BOARD_W / 2;
+  const cy = BOARD_H / 2;
+  // Inner radius — notes start outside this distance from centre so
+  // they don't crowd the central prompt. Default leaves room for the
+  // ~480×220 prompt block.
+  const inner = opts.innerRadius || 320;
+  // Outer radius — notes stay within this distance so the whole
+  // cluster reads as ONE board.
+  const outer = opts.outerRadius || 760;
+  // Stretch the ring horizontally so the cluster reads wide (matches
+  // typical viewport aspect ratios, like the Miro reference).
+  const sx = opts.stretchX || 1.45;
+  const sy = opts.stretchY || 1.0;
+
+  // STRATIFIED angle: the caller assigns each note a slot index i out
+  // of N total. The slot spans 2π/N radians; we jitter inside it.
+  // A small per-call offset rotates the WHOLE ring so it doesn't
+  // always start at the same compass bearing.
+  const slot = (typeof opts.angleSlot === 'number') ? opts.angleSlot : -1;
+  const slotCount = Math.max(1, opts.slotCount || 1);
+  // Start angle offset: -π/2 so slot 0 is straight up (the eye sees
+  // the ring "begin" at 12 o'clock, like a clock face).
+  const startAngle = -Math.PI / 2 + (opts.angleOffset || 0);
+  const slotSize = (Math.PI * 2) / slotCount;
+  // Jitter within the slot — keep within ±35% of slot size so notes
+  // don't drift into neighbouring sectors.
+  const jitterMax = slotSize * 0.35;
+
+  let best = null;
+  let bestScore = -Infinity;
+  const TRIES = 60;
+  for (let i = 0; i < TRIES; i++) {
+    let angle;
+    if (slot >= 0) {
+      // Confined to this note's sector.
+      const baseAngle = startAngle + slotSize * slot;
+      angle = baseAngle + randBetween(-jitterMax, jitterMax);
+    } else {
+      angle = Math.random() * Math.PI * 2;
+    }
+    // Radius: bias toward the middle of the ring so notes cluster
+    // (sqrt(t) puts more weight at the inner edge).
+    const t = Math.random();
+    const r = inner + (outer - inner) * Math.sqrt(t);
+    const x = cx + Math.cos(angle) * r * sx - width / 2;
+    const y = cy + Math.sin(angle) * r * sy - height / 2;
+    // Clamp to canvas bounds.
+    const cxx = Math.max(20, Math.min(BOARD_W - width - 20, x));
+    const cyy = Math.max(20, Math.min(BOARD_H - height - 20, y));
+    const rect = { x: cxx, y: cyy, w: width, h: height };
+    // Score by minimum distance to any existing note (more = better).
+    let minDist = Infinity;
+    for (const p of BOARD_PLACED) {
+      const ox = (cxx + width / 2) - (p.x + p.w / 2);
+      const oy = (cyy + height / 2) - (p.y + p.h / 2);
+      const dx = Math.max(0, Math.abs(ox) - (width + p.w) / 2 - pad);
+      const dy = Math.max(0, Math.abs(oy) - (height + p.h) / 2 - pad);
+      const d = Math.hypot(dx, dy);
+      if (d < minDist) minDist = d;
+    }
+    if (minDist > 0) { BOARD_PLACED.push(rect); return rect; }
+    if (minDist > bestScore) { bestScore = minDist; best = rect; }
+  }
+  if (best) BOARD_PLACED.push(best);
+  return best || { x: cx, y: cy, w: width, h: height };
+}
+
+function renderPinBoard(){
+  const board = document.getElementById('example-board');
+  if (!board) return;
+  // Clear ONLY existing example clusters — leave any visitor "you"
+  // notes alone, so "shuffle examples" doesn't wipe out the visitor's
+  // contributions. Clusters are direct children of .board-canvas.
+  document.querySelectorAll('.board-canvas .note-cluster').forEach(el => el.remove());
+  board.classList.remove('loading');
+
+  // Position the central prompt at the canvas centre (it lives in
+  // canvas coords so it pans with the board), and reserve its
+  // bounding rect so notes won't land on top of it.
+  positionCentralPrompt();
+
+  // Reset placement tracking — start with the central prompt as the
+  // first "placed" rect, then re-register existing you-notes so new
+  // clusters avoid both.
+  BOARD_PLACED = [];
+  const promptRect = getCentralPromptRect();
+  if (promptRect) BOARD_PLACED.push(promptRect);
+  document.querySelectorAll('.board-canvas .you-note').forEach(el => {
+    const left = parseFloat(el.style.left) || 0;
+    const top  = parseFloat(el.style.top)  || 0;
+    const w = el.offsetWidth || 200;
+    const h = el.offsetHeight || 160;
+    BOARD_PLACED.push({ x: left, y: top, w, h });
+  });
+
+  if (!SCENE.length) {
+    board.classList.add('loading');
+    return;
+  }
+
+  const canvas = document.getElementById('board-canvas');
+  const N = SCENE.length;
+
+  // CONCENTRIC RINGS — instead of one huge ring far from the prompt
+  // (which puts notes off-screen on landing), pack notes into 2–3
+  // smaller rings starting just outside the prompt. The inner ring
+  // gets ~5 notes; each subsequent ring fits ~4 more notes than the
+  // previous one (circumference grows linearly with radius). On
+  // landing, the visitor sees the prompt + the entire inner ring +
+  // most of the second ring in the viewport.
+  const PER_RING_FIRST = 6;
+  const PER_RING_STEP  = 4;       // how many extra notes the next ring can hold
+  const RING_GAP       = 260;     // radial spacing between rings
+  const FIRST_RING_R   = 410;     // inner ring radius — close to prompt
+                                  // (just outside the ~270px-radius
+                                  // central prompt's reserved box)
+
+  // Assign each note an (ringIdx, slotIdx) pair.
+  const ringAssign = [];
+  let placed = 0;
+  let ringIdx = 0;
+  while (placed < N) {
+    const cap = PER_RING_FIRST + ringIdx * PER_RING_STEP;
+    const take = Math.min(cap, N - placed);
+    for (let s = 0; s < take; s++) {
+      ringAssign.push({ ring: ringIdx, slot: s, slotCount: take });
+    }
+    placed += take;
+    ringIdx++;
+  }
+
+  // Random angular offset per RING so successive rings don't line
+  // their notes up radially (would look gridded). Each ring also
+  // gets a base radius derived from FIRST_RING_R + ringIdx * RING_GAP.
+  const ringOffsets = [];
+  for (let r = 0; r <= ringIdx; r++) {
+    ringOffsets.push(Math.random() * Math.PI * 2);
+  }
+
+  // SHUFFLE the assignment order so the visually-distinct notes
+  // (size, colour) aren't predictably placed in slot order.
+  const order = [];
+  for (let i = 0; i < N; i++) order.push(i);
+  order.sort(() => Math.random() - 0.5);
+
+  SCENE.forEach((node, i) => {
+    const cluster = buildMemo(node, i);
+    // Random size class — mostly md, sprinkles of sm + lg. The size
+    // class lives on the CLUSTER so the stack + memo scale together.
+    const szCls = SIZE_CLASSES[Math.floor(Math.random() * SIZE_CLASSES.length)];
+    cluster.classList.add(szCls);
+    // Random paper colour for the sticky note inside the cluster.
+    const paper = PAPER_COLORS[Math.floor(Math.random() * PAPER_COLORS.length)];
+    cluster.style.setProperty('--paper', paper.paper);
+    cluster.style.setProperty('--tag-bg',  paper.tag);
+    cluster.style.setProperty('--cluster-tilt', randomTilt());
+    // Append BEFORE layout so the size class is applied (and CSS
+    // vars resolved) by the time layoutCluster reads computed style.
+    canvas.appendChild(cluster);
+    layoutCluster(cluster, cluster.classList.contains('side-left'));
+    const w = cluster.offsetWidth || 380;
+    const h = cluster.offsetHeight || 230;
+
+    // Look up this note's ring assignment via the shuffled order.
+    const assign = ringAssign[order[i]];
+    const baseR  = FIRST_RING_R + assign.ring * RING_GAP;
+    const pos = pickRandomBoardPosition(w, h, {
+      pad: 18,
+      innerRadius: baseR - 70,
+      outerRadius: baseR + 70,
+      stretchX: 1.25, stretchY: 1.0,
+      angleSlot: assign.slot,
+      slotCount: assign.slotCount,
+      angleOffset: ringOffsets[assign.ring] || 0,
+    });
+    cluster.style.left = pos.x + 'px';
+    cluster.style.top  = pos.y + 'px';
+    setTimeout(() => cluster.classList.remove('just-pinned'), 600);
+  });
+
+  // After scattering the clusters, centre the camera on the central
+  // prompt (which is at canvas centre by design).
+  centerBoardOnContent();
+}
+
+// Place the central prompt at the centre of the canvas. We position
+// in canvas coords so the prompt pans WITH the board (the visitor
+// can drag away and back, the prompt stays where they pinned it).
+function positionCentralPrompt(){
+  const p = document.getElementById('board-prompt');
+  if (!p) return;
+  // Make sure the prompt is laid out (offsetWidth needs it visible).
+  p.style.left = '0px';
+  p.style.top = '0px';
+  const w = p.offsetWidth || 480;
+  const h = p.offsetHeight || 200;
+  p.style.left = (BOARD_W / 2 - w / 2) + 'px';
+  p.style.top  = (BOARD_H / 2 - h / 2) + 'px';
+}
+
+// Return the central prompt's bounding rect on the canvas, slightly
+// inflated so notes leave breathing room around it.
+function getCentralPromptRect(){
+  const p = document.getElementById('board-prompt');
+  if (!p) return null;
+  const w = p.offsetWidth  || 480;
+  const h = p.offsetHeight || 200;
+  const pad = 30;
+  return {
+    x: BOARD_W / 2 - w / 2 - pad,
+    y: BOARD_H / 2 - h / 2 - pad,
+    w: w + pad * 2,
+    h: h + pad * 2,
+  };
+}
+
+// Build a single note cluster: a fanned PHOTO STACK on one side, a
+// Miro-style STICKY NOTE on the other side, and a soft curved LINE
+// connecting them. The whole cluster is one click target.
+function buildMemo(node, i){
+  const { task, yfcc } = node;
+
+  // Outer cluster is a plain DIV (not a button) so we can nest the
+  // two real, semantically-separate click targets inside:
+  //   • the PHOTO STACK button → opens this person's camera roll
+  //   • the STICKY NOTE button → opens the full chat for this question
+  // The dashed connector line + empty cluster space have no click
+  // handler — visitors must click one of the two affordances on
+  // purpose. This avoids nested-button HTML and ambiguous taps.
+  const cluster = document.createElement('div');
+  cluster.className = 'note-cluster just-pinned';
+  cluster.setAttribute('data-ex-idx', String(i));
+  cluster.setAttribute('role', 'group');
+
+  // Pick which side of the cluster gets the photo stack vs the
+  // sticky note. We use a stable hash of the asker's name so a given
+  // person always reads "the same way" (their photos always on the
+  // same side), but the mix across the board still feels random.
+  const stackOnLeft = (nameSeed((yfcc && yfcc.name) || task.name || '') & 1) === 0;
+  cluster.classList.add(stackOnLeft ? 'side-left' : 'side-right');
+
+  const speakerName = (yfcc && yfcc.name) || task.name || '';
+  const firstName = speakerName.split(/\s+/)[0] || speakerName;
+
+  // 1. PHOTO STACK — fanned polaroids of the asker's camera roll.
+  //    Real <button> so it's keyboard-focusable on its own. Built
+  //    first because we need its position for the SVG link.
+  const stack = buildPhotoStack(node);
+  stack.setAttribute('aria-label', 'Open ' + speakerName + '\'s camera roll');
+  stack.title = 'View ' + firstName + '\'s camera roll';
+  stack.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    if (typeof openCameraRoll === 'function' && yfcc) openCameraRoll(yfcc);
+  });
+  cluster.appendChild(stack);
+
+  // 2. SVG link layer — drawn AFTER the stack so its path can be
+  //    positioned based on (stackCenter ↔ memoCenter). The actual
+  //    path coordinates depend on layout, which we compute below
+  //    once cluster sizes are known.
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('class', 'nc-link');
+  svg.setAttribute('preserveAspectRatio', 'none');
+  const path = document.createElementNS(svgNS, 'path');
+  svg.appendChild(path);
+  cluster.appendChild(svg);
+
+  // 3. STICKY NOTE — the question, name tag, optional ref photos.
+  //    Also a real <button> with its own click handler.
+  const memo = document.createElement('button');
+  memo.type = 'button';
+  memo.className = 'example-memo';
+  memo.setAttribute('aria-label', 'Read ' + speakerName + '\'s full chat');
+  memo.title = task.text || 'Click to read the full chat';
+
+  const body = document.createElement('div');
+  body.className = 'memo-body';
+
+  // 3a. If the asker attached reference images to their question
+  //     ("I went somewhere like this [img] — when was it?"), show
+  //     small thumbs above the question text.
+  const refs = (node.userPhotos || []).slice(0, 2);
+  if (refs.length) {
+    const refRow = document.createElement('div');
+    refRow.className = 'mb-refs';
+    refs.forEach(p => {
+      const r = document.createElement('div');
+      r.className = 'mb-ref';
+      const im = document.createElement('img');
+      im.loading = 'lazy';
+      im.src = p.thumb || p.dataUrl || p.url || '';
+      im.alt = '';
+      im.onerror = () => { im.style.opacity = '0.2'; };
+      r.appendChild(im);
+      refRow.appendChild(r);
+    });
+    body.appendChild(refRow);
+  }
+
+  const q = document.createElement('div');
+  q.className = 'mb-question' + (refs.length ? ' has-refs' : '');
+  q.textContent = task.text || '';
+  body.appendChild(q);
+  memo.appendChild(body);
+
+  // 3b. Speaker name — written in marker handwriting underneath /
+  //     above the sticky, with a scribble underline and a sparkle.
+  //     First name only — feels more like a hand-scribbled credit.
+  const tag = document.createElement('div');
+  // Tag goes on the side AWAY from the photo stack so it doesn't
+  // cover the connecting line.
+  const tagPos = stackOnLeft
+    ? (Math.random() < 0.5 ? 'pos-br' : 'pos-tr')
+    : (Math.random() < 0.5 ? 'pos-bl' : 'pos-tl');
+  // Random sparkle position (.flip puts the sparkle on the right
+  // of the name instead of the left), for visual variety.
+  const flip = Math.random() < 0.5 ? ' flip' : '';
+  tag.className = 'name-tag ' + tagPos + flip;
+  tag.textContent = firstName;
+  memo.appendChild(tag);
+
+  memo.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    // Carry the note's paper + tag colours into the modal so the
+    // chat card visually echoes the sticky note the visitor came
+    // from (same pastel, same tag colour on the eyebrow pill).
+    const cs = getComputedStyle(cluster);
+    const paperVal = (cs.getPropertyValue('--paper') || '').trim();
+    const tagVal   = (cs.getPropertyValue('--tag-bg') || '').trim();
+    openExampleModal(i, { paper: paperVal, tag: tagVal });
+  });
+
+  cluster.appendChild(memo);
+
+  // NOTE: actual layout (positioning photo stack + sticky note +
+  // drawing the SVG link path) happens in renderPinBoard AFTER the
+  // size class is on the element, since layout reads --cluster-w
+  // etc. from computed style.
+
+  return cluster;
+}
+
+// Build the fanned photo-stack DOM. Returns a .pc-stack element with
+// 4 polaroid children + a count badge. Each polaroid has its own
+// small random offset + tilt so the pile looks hand-spilled.
+function buildPhotoStack(node){
+  // <button> not <div> so it's keyboard-focusable and announces as
+  // an action to screen readers. The caller (buildMemo) attaches the
+  // click handler that opens the asker's camera roll.
+  const stack = document.createElement('button');
+  stack.type = 'button';
+  stack.className = 'pc-stack';
+
+  const photos = pickStackPhotos(node, 4);
+  if (!photos.length) return stack;
+
+  // Hand-tuned offset/tilt presets — each polaroid gets one. Indexed
+  // from BOTTOM of pile to TOP so the last one painted is on top.
+  const slots = [
+    { dx: -10, dy:  10, tilt: -7 },
+    { dx:   6, dy:  -8, tilt:  5 },
+    { dx:  -4, dy:   4, tilt: -2 },
+    { dx:   2, dy:  -2, tilt:  3 },
+  ];
+
+  photos.forEach((src, idx) => {
+    const slot = slots[idx] || slots[slots.length - 1];
+    const ph = document.createElement('div');
+    ph.className = 'pc-photo';
+    ph.style.setProperty('--ph-dx',   slot.dx + 'px');
+    ph.style.setProperty('--ph-dy',   slot.dy + 'px');
+    ph.style.setProperty('--ph-tilt', slot.tilt + 'deg');
+    const img = document.createElement('div');
+    img.className = 'pc-img';
+    img.style.backgroundImage = 'url(' + src + ')';
+    ph.appendChild(img);
+    stack.appendChild(ph);
+  });
+
+  // Folder count badge — uses the asker's real total photo count
+  // when known (from yfcc manifest), falls back to a believable
+  // triple-digit number.
+  const total = (node.yfcc && node.yfcc.photoCount)
+    || (180 + (nameSeed((node.task && node.task.name) || 'x') % 720));
+  const badge = document.createElement('div');
+  badge.className = 'pc-count';
+  badge.innerHTML = '<span class="pc-count-ico">📷</span>' + total;
+  stack.appendChild(badge);
+
+  return stack;
+}
+
+// Position the photo stack on its side of the cluster, the sticky
+// note on the opposite side, and draw the connecting SVG curve.
+// Reads --cluster-w / --cluster-h / --stack-size / --memo-w / --memo-h
+// from the cluster's computed style (set by the .sz-* size class).
+function layoutCluster(cluster, stackOnLeft){
+  const cs = getComputedStyle(cluster);
+  const px = (v, fb) => {
+    const n = parseFloat(v);
+    return Number.isFinite(n) ? n : fb;
+  };
+  const W   = px(cs.getPropertyValue('--cluster-w'), 380);
+  const H   = px(cs.getPropertyValue('--cluster-h'), 230);
+  const SS  = px(cs.getPropertyValue('--stack-size'), 130);
+  const MW  = px(cs.getPropertyValue('--memo-w'),  180);
+
+  // Stack and memo sit on opposite sides, vertically centred.
+  // Generous edge margin so neither hits the cluster boundary.
+  const stackLeftX = 18;
+  const stackRightX = W - SS - 18;
+  const memoMargin = 14;
+
+  if (stackOnLeft) {
+    cluster.style.setProperty('--stack-x', stackLeftX + 'px');
+    cluster.style.setProperty('--stack-y', '50%');
+    cluster.style.setProperty('--memo-x', (W - MW / 2 - memoMargin) + 'px');
+  } else {
+    cluster.style.setProperty('--stack-x', stackRightX + 'px');
+    cluster.style.setProperty('--stack-y', '50%');
+    cluster.style.setProperty('--memo-x', (MW / 2 + memoMargin) + 'px');
+  }
+  cluster.style.setProperty('--memo-y', '50%');
+
+  // Draw the SVG connector — a soft Bezier curve from the stack's
+  // inside edge to the memo's near edge. Stays in CLUSTER coordinates.
+  const svg = cluster.querySelector('.nc-link');
+  const path = svg && svg.querySelector('path');
+  if (!path) return;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  const stackCx = stackOnLeft ? (stackLeftX + SS / 2) : (stackRightX + SS / 2);
+  const stackCy = H / 2;
+  const memoCx  = stackOnLeft ? (W - MW / 2 - memoMargin) : (MW / 2 + memoMargin);
+  const memoCy  = H / 2;
+
+  // Start point: edge of the stack facing the memo.
+  const sx = stackOnLeft ? (stackCx + SS / 2 - 4) : (stackCx - SS / 2 + 4);
+  const sy = stackCy + 6;          // bias slightly down so line emerges from "bottom of pile"
+  // End point: edge of the memo facing the stack.
+  const ex = stackOnLeft ? (memoCx - MW / 2 + 6) : (memoCx + MW / 2 - 6);
+  const ey = memoCy - 4;           // bias slightly up so it lands near the question text
+
+  // Soft cubic curve — control points pulled toward the centre so
+  // the line dips gently between the two endpoints.
+  const midX = (sx + ex) / 2;
+  const c1x = midX, c1y = sy + 14;
+  const c2x = midX, c2y = ey - 14;
+  path.setAttribute('d', `M ${sx} ${sy} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${ex} ${ey}`);
+}
+
+// Pick N unique-ish image thumbs for the stack. Same source priority
+// as before (YFCC preview → riffle → matched → pool), but we WANT
+// distinct photos because each polaroid is fully visible now (no
+// blur to hide repeats).
+function pickStackPhotos(node, n){
+  const unique = [];
+  const seen = new Set();
+  const push = (src) => {
+    if (!src || seen.has(src)) return;
+    seen.add(src);
+    unique.push(src);
+  };
+  if (node.yfcc && Array.isArray(node.yfcc.preview)) {
+    node.yfcc.preview.forEach(push);
+  }
+  (node.riffle || []).forEach(p => push(p.thumb || p.dataUrl || p.url));
+  (node.matched || []).forEach(p => push(p.thumb || p.dataUrl || p.url));
+  if (unique.length < n && typeof PHOTO_POOL !== 'undefined') {
+    for (const p of PHOTO_POOL) {
+      push(p.thumb || p.dataUrl || p.url);
+      if (unique.length >= n) break;
+    }
+  }
+  return unique.slice(0, n);
+}
+
+// ─────────────────────────────────────────────────────────────
+// MODAL — opens a memo's full chat at normal size.
+// ─────────────────────────────────────────────────────────────
+
+function openExampleModal(idx, theme){
+  if (idx < 0 || idx >= SCENE.length) return;
+  const node = SCENE[idx];
+  const modal = document.getElementById('example-modal');
+  const card  = document.getElementById('example-modal-card');
+  const body  = document.getElementById('example-modal-body');
+  const lbl   = document.getElementById('example-modal-eyebrow-label');
+  if (!modal || !body) return;
+
+  // Apply the sticky-note theme (paper + tag colour) to the modal
+  // card so it visually echoes the note the visitor clicked. Falls
+  // back to neutral defaults baked into the CSS if no theme passed.
+  if (card) {
+    if (theme && theme.paper) {
+      card.style.setProperty('--em-paper', theme.paper);
+    } else {
+      card.style.removeProperty('--em-paper');
+    }
+    if (theme && theme.tag) {
+      card.style.setProperty('--em-tag', theme.tag);
+    } else {
+      card.style.removeProperty('--em-tag');
+    }
+  }
+
+  // Clear any previous content; build a FULL-SIZE finalized turn so
+  // the modal shows the chat exactly as it would appear in the main
+  // thread (no shrink, no peek, no animation).
+  body.innerHTML = '';
+  const turn = createFinalizedExampleTurn(node, 'left');
+  body.appendChild(turn);
+
+  // Eyebrow label: "<Speaker> · <category>" — sits inside a pill in
+  // the note's tag colour, so it looks like the note's name-tag
+  // followed the visitor into the modal.
+  if (lbl) {
+    const speaker = (node.yfcc && node.yfcc.name) || node.task.name;
+    const category = node.task.category || '';
+    lbl.textContent = speaker + (category ? ' · ' + category : '');
+  }
+
+  modal.removeAttribute('hidden');
+  modal.classList.add('open');
+  document.body.classList.add('modal-open');
+
+  // After the modal renders, the .turn's chip→AI-bubble SVG link
+  // needs its path recomputed (it can't compute zero-sized boxes).
+  requestAnimationFrame(() => updateTurnLink(turn));
+}
+
+function closeExampleModal(){
+  const modal = document.getElementById('example-modal');
+  if (!modal) return;
+  modal.classList.remove('open');
+  modal.setAttribute('hidden', '');
+  document.body.classList.remove('modal-open');
+  const body = document.getElementById('example-modal-body');
+  if (body) body.innerHTML = '';
+}
+
+// Wire up modal close: backdrop click, Esc key, close button.
+// Called once at boot.
+function initExampleModalControls(){
+  const modal = document.getElementById('example-modal');
+  if (!modal) return;
+  // Backdrop click — close only when the visitor clicks the dim
+  // background, NOT when they click inside the modal card.
+  modal.addEventListener('click', (ev) => {
+    if (ev.target === modal) closeExampleModal();
+  });
+  const closeBtn = document.getElementById('example-modal-close');
+  if (closeBtn) closeBtn.addEventListener('click', closeExampleModal);
+  // Esc to close — but ignore when focus is in a text field (so Esc
+  // can blur an input or clear an autocomplete first).
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'Escape') return;
+    if (!modal.classList.contains('open')) return;
+    const tag = (ev.target && ev.target.tagName) || '';
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || (ev.target && ev.target.isContentEditable)) return;
+    closeExampleModal();
+  });
+}
+
+// Legacy compatibility shim — playSequence used to drive the carousel
+// animation. The pin board doesn't animate, so this just kicks off
+// renderPinBoard(). Kept as a function for any external code paths
+// (none today, but reshuffle() used to call it).
+function playSequence(){
+  renderPinBoard();
+}
+
+async function playOneTurn(node, side, runId, existingTurn){
   const { task, riffle, matched, userPhotos } = node;
 
-  // 1. Insert the user turn (gutter is EMPTY for now — chip arrives
-  //    later, with the AI's reply, in the lower position).
-  const turn = createExampleTurnSkeleton(node, side);
-  insertExampleTurn(turn);
+  // 1. If the caller pre-built the skeleton (carousel path), reuse it.
+  //    Otherwise insert a fresh one (legacy path / safety).
+  const turn = existingTurn || (() => {
+    const t = createExampleTurnSkeleton(node, side);
+    insertExampleTurn(t);
+    return t;
+  })();
+  // No need to scroll the outer thread now that examples live in a
+  // fixed-height viewport at the top — but we still call it so that
+  // any visitor "you" turns below stay anchored.
   scrollThreadToBottom();
   await sleep(50);
   await sleep(380);
@@ -1910,14 +3653,121 @@ async function playOneTurn(node, side, runId){
   updateTurnLink(turn);
 }
 
-// Insert an example turn into the thread, BEFORE any "you" contribution turns,
-// so the visitor's questions stay at the bottom of the thread.
+// Legacy: previously used by the carousel/animated path to drop a
+// freshly-built example turn into the viewport. The pin board does
+// the insertion itself in renderPinBoard/buildMemo, so this is now a
+// no-op kept only so the dormant `playOneTurn` codepath doesn't throw
+// if it ever gets revived.
 function insertExampleTurn(turn){
-  const inner = document.getElementById('thread-inner');
-  const firstYou = inner.querySelector('.turn.you');
-  if (firstYou) inner.insertBefore(turn, firstYou);
-  else inner.appendChild(turn);
+  /* no-op — pin board handles insertion directly. */
 }
+
+// Build an example turn in its FINAL (fully revealed) state — text
+// already typed, user "why" + attachments already shown, folder in
+// "done · N photos" mode, AI answer text + retrieved photos already
+// present. Used for the not-yet-visited carousel cards so when the
+// visitor flips to them they appear instantly, no animation replay.
+function createFinalizedExampleTurn(node, side){
+  const { task, yfcc, matched, userPhotos, totalCount } = node;
+  // Start from the same skeleton the animator uses, then fast-forward
+  // every step.
+  const turn = createExampleTurnSkeleton(node, side);
+
+  // 1. Fill in the user's question text + remove the typing dots.
+  const userMsg = turn.querySelector('.msg.user');
+  if (userMsg) {
+    const txt = userMsg.querySelector('.text');
+    if (txt) {
+      txt.classList.remove('placeholder');
+      txt.textContent = task.text;
+    }
+    // 1a. Add the "why" italic aside if the task has one.
+    if (task.why && !userMsg.querySelector('.user-why')) {
+      const body = userMsg.querySelector('.body');
+      const w = document.createElement('div');
+      w.className = 'user-why';
+      w.textContent = '— ' + task.why;
+      // Insert right after the .text node so order matches the
+      // animated reveal.
+      if (txt && txt.parentNode === body) {
+        txt.insertAdjacentElement('afterend', w);
+      } else if (body) {
+        body.appendChild(w);
+      }
+    }
+    // 1b. Attached reference images (if any) — same DOM shape as
+    //     revealAttachedPhotos() but without the fade-in animation.
+    if (userPhotos && userPhotos.length) {
+      const body = userMsg.querySelector('.body');
+      if (body && !body.querySelector('.attachments.attached')) {
+        const tag = document.createElement('div');
+        tag.className = 'attached-tag';
+        tag.innerHTML = `<span class="aclip">📎</span> attached · ${userPhotos.length} image${userPhotos.length > 1 ? 's' : ''}`;
+        body.appendChild(tag);
+        const att = document.createElement('div');
+        att.className = 'attachments attached n-' + userPhotos.length;
+        userPhotos.forEach(p => {
+          const a = document.createElement('div');
+          a.className = 'attachment';
+          const img = document.createElement('img');
+          img.loading = 'lazy';
+          img.src = p.thumb || p.dataUrl || p.url;
+          img.alt = p.name || '';
+          img.onerror = () => { img.style.opacity = '0.15'; };
+          a.appendChild(img);
+          if (p.page) a.onclick = () => window.open(p.page, '_blank', 'noopener');
+          att.appendChild(a);
+        });
+        body.appendChild(att);
+      }
+    }
+  }
+
+  // 2. Materialize the folder chip in its 'done' state (no riffle,
+  //    just the mosaic + "found N photos" label).
+  const folderRow = materializeFolderChip(turn, node);
+  if (folderRow) {
+    folderRow.classList.remove('just-arrived', 'searching');
+    folderRow.classList.add('done');
+    const status = folderRow.querySelector('.fl-status span:last-child');
+    if (status) {
+      const n = (matched || []).length;
+      status.textContent = 'found ' + n + ' photo' + (n === 1 ? '' : 's');
+    }
+    const stack = folderRow.querySelector('.folder-stack');
+    if (stack) stack.querySelectorAll('.stk').forEach(s => s.style.opacity = '0');
+  }
+
+  // 3. Append the final AI bubble — text + retrieved photos already
+  //    in place (no fly-out, no streaming).
+  const ai = renderAiMsg(task.aiReply || '', matched || []);
+  const retrieved = ai.querySelector('.attachments.retrieved');
+  if (retrieved) {
+    // Make sure the retrieved attachments are visible (the animated
+    // path sets them to opacity:0 then fades each one in).
+    retrieved.querySelectorAll('.attachment').forEach(a => {
+      a.style.opacity = '1';
+    });
+  }
+  const msgs = turn.querySelector('.turn-msgs');
+  (msgs || turn).appendChild(ai);
+
+  // 4. Mark the turn as 'done' so the chip→bubble link styles itself
+  //    in the calm post-search state.
+  turn.classList.add('done');
+
+  // Defer the link path computation to when the card actually becomes
+  // visible (it's display:none until then, so getBoundingClientRect
+  // would return zeroes). setActiveExample() handles this.
+
+  return turn;
+}
+
+// (Carousel navigation helpers — setActiveExample / renderExampleNav /
+//  gotoExample / initExampleNavControls — were removed when the layout
+//  switched to a pin board. The pin board uses renderPinBoard +
+//  openExampleModal / closeExampleModal / initExampleModalControls
+//  instead, defined earlier in this file.)
 
 // Build the empty turn skeleton with the 3-column layout:
 //   [ left-gutter | message-column | right-gutter ]
@@ -2355,6 +4205,16 @@ function flyPhotosOutOfFolder(photos, folderRow, retrievedContainer, runId){
 
   const chip = folderRow.querySelector('.folder-chip');
   const srcRect = chip.getBoundingClientRect();
+  // If the source chip isn't currently visible (e.g. the visitor flipped
+  // to another carousel card while this animation was queued), the rect
+  // collapses to 0×0 and the fly-out would launch from (0,0) into thin
+  // air. Detect that and just snap the photos visible — when the visitor
+  // returns to this card, the retrieved strip will look correct without
+  // the animation.
+  if (!srcRect.width || !srcRect.height) {
+    targets.forEach(t => { t.style.opacity = '1'; });
+    return Promise.resolve();
+  }
   // Start point: centre of the folder chip.
   const srcCx = srcRect.left + srcRect.width  / 2;
   const srcCy = srcRect.top  + srcRect.height / 2;
@@ -2569,9 +4429,11 @@ function renderAiMsg(text, retrievedPhotos){
 // ─────────────────────────────────────────────────────────────
 
 function renderForm(){
-  // Wipe any previous "you" turns and reset state.
+  // Wipe any previous "you" sticky notes from the board (and any old
+  // .turn.you nodes in the legacy thread-inner, for safety).
+  document.querySelectorAll('.board-canvas .you-note').forEach(el => el.remove());
   const inner = document.getElementById('thread-inner');
-  inner.querySelectorAll('.turn.you').forEach(el => el.remove());
+  if (inner) inner.querySelectorAll('.turn.you').forEach(el => el.remove());
   CONTRIB_COUNT = 0;
   updateProgress();
   const inp = document.getElementById('chat-input');
@@ -2627,78 +4489,127 @@ const SAVED_PHRASES = [
 ];
 function pickRandom(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
 
-// Append a "You" turn to the chat thread. If the visitor attached
-// reference images via the chatbar's ＋ button, they're rendered inline
-// in the user bubble (same style as the fake users' attached refs).
+// Pin a new visitor "you" sticky note at a random position on the
+// board. If the visitor attached reference images via the chatbar's
+// ＋ button, small thumbs are rendered inside the note.
+//
+// Returns the new note element so the save flow can flip it to
+// "saved" state once the Apps Script call resolves.
 function addContribBubble(text, photos){
   CONTRIB_COUNT += 1;
-  const inner = document.getElementById('thread-inner');
+  const canvas = document.getElementById('board-canvas');
+  if (!canvas) return null;
 
-  const turn = document.createElement('div');
-  turn.className = 'turn you pending';
-  turn.appendChild(buildTurnHeader('You', 'your contribution'));
-  // Wrap messages in .turn-msgs so they span the full grid width
-  // (.turn.you .turn-msgs is set to `grid-column: 1 / -1` in CSS).
-  const msgs = document.createElement('div');
-  msgs.className = 'turn-msgs';
-  msgs.appendChild(renderUserMsg({
-    name: 'You',
-    text: text,
-    photos: photos && photos.length ? photos : null,
-    isYou: true,
-  }));
+  const note = document.createElement('div');
+  note.className = 'you-note pending just-pinned';
 
-  // Optimistic playful "saving…" placeholder with animated typing dots.
-  const ai = renderAiMsg('');
-  ai.classList.add('saving-msg');
-  const txEl = ai.querySelector('.text');
-  if (txEl) {
-    const phrase = document.createElement('span');
-    phrase.className = 'saving-phrase';
-    phrase.textContent = pickRandom(SAVING_PHRASES);
-    txEl.appendChild(phrase);
-    const dots = document.createElement('span');
-    dots.className = 'typing-dots';
-    dots.innerHTML = '<span></span><span></span><span></span>';
-    txEl.appendChild(dots);
+  // Question text — centred Miro-sticky-note style.
+  const txt = document.createElement('div');
+  txt.className = 'yn-text';
+  txt.textContent = text;
+  note.appendChild(txt);
+
+  // Attached image thumbnails (if any).
+  if (photos && photos.length) {
+    const thumbs = document.createElement('div');
+    thumbs.className = 'yn-thumbs';
+    photos.slice(0, 6).forEach(p => {
+      const im = document.createElement('img');
+      im.loading = 'lazy';
+      im.src = p.dataUrl || p.thumb || p.url || '';
+      im.alt = p.name || '';
+      thumbs.appendChild(im);
+    });
+    note.appendChild(thumbs);
   }
-  msgs.appendChild(ai);
-  turn.appendChild(msgs);
 
-  inner.appendChild(turn);
+  // Tiny status line while pending; becomes invisible once saved.
+  const status = document.createElement('div');
+  status.className = 'yn-status';
+  const spin = document.createElement('span');
+  spin.className = 'yn-spin';
+  status.appendChild(spin);
+  const stxt = document.createElement('span');
+  stxt.className = 'yn-status-text';
+  stxt.textContent = 'saving…';
+  status.appendChild(stxt);
+  note.appendChild(status);
 
-  // Smoothly scroll the thread to the new turn.
+  // YOU name tag — speech bubble in the bottom-left corner.
+  const tag = document.createElement('div');
+  tag.className = 'yn-tag';
+  tag.textContent = 'YOU';
+  note.appendChild(tag);
+
+  // Position before measuring (we need the note in the DOM with
+  // its colour vars set so offsetWidth/Height return real values).
+  note.style.setProperty('--memo-tilt', randomTilt());
+  canvas.appendChild(note);
+
+  // Now that the note is in the DOM, use its real rendered size to
+  // pick a non-overlapping spot in the same ring as the example
+  // memos (so visitor notes blend into the cluster).
+  const w = note.offsetWidth  || 200;
+  const h = note.offsetHeight || 160;
+  // Re-use the current ring radius if any example memos exist; else
+  // fall back to a sensible default ring.
+  const baseR = Math.max(320, BOARD_PLACED.length * 30);
+  const pos = pickRandomBoardPosition(w, h, {
+    pad: 18,
+    innerRadius: baseR - 80,
+    outerRadius: baseR + 220,
+    stretchX: 1.45, stretchY: 1.0,
+  });
+  note.style.left = pos.x + 'px';
+  note.style.top  = pos.y + 'px';
+  setTimeout(() => note.classList.remove('just-pinned'), 600);
+
+  // Pan the camera to the new note so the visitor can see where it
+  // landed.
   const thread = document.getElementById('thread');
-  if (thread) thread.scrollTop = thread.scrollHeight;
+  if (thread) {
+    const targetX = thread.clientWidth  * 0.5  - (pos.x + w / 2);
+    const targetY = thread.clientHeight * 0.45 - (pos.y + h / 2);
+    smoothPanTo(targetX, targetY);
+  }
 
   updateProgress();
-  return turn;
+  return note;
 }
 
-function markBubbleSaved(turn, imageCount){
-  turn.classList.remove('pending');
-  turn.classList.add('saved');
-  const txEl = turn.querySelector('.saving-msg .text');
-  if (txEl) {
-    txEl.innerHTML = '';
-    const span = document.createElement('span');
-    span.className = 'saved-text';
-    let phrase = pickRandom(SAVED_PHRASES);
-    if (imageCount && imageCount > 0) {
-      phrase += ` (with ${imageCount} image${imageCount > 1 ? 's' : ''})`;
-    }
-    span.textContent = phrase;
-    txEl.appendChild(span);
+// Smoothly tween BOARD_PAN from its current value to (x, y). Used when
+// a new "you" note is dropped so the visitor sees their note land in
+// view even if it scattered to a far corner of the canvas.
+function smoothPanTo(x, y){
+  const start = { x: BOARD_PAN.x, y: BOARD_PAN.y };
+  const target = { x, y };
+  const t0 = performance.now();
+  const dur = 420;
+  function step(t){
+    const k = Math.min(1, (t - t0) / dur);
+    // Ease-out cubic for a confident-but-not-jumpy settle.
+    const e = 1 - Math.pow(1 - k, 3);
+    BOARD_PAN.x = start.x + (target.x - start.x) * e;
+    BOARD_PAN.y = start.y + (target.y - start.y) * e;
+    clampBoardPan();
+    applyBoardTransform();
+    if (k < 1) requestAnimationFrame(step);
   }
-  // Pop a small green "saved" chip next to the user's name.
-  const who = turn.querySelector('.msg.user .who');
-  if (who && !who.querySelector('.saved-chip')) {
-    const chip = document.createElement('span');
-    chip.className = 'saved-chip';
-    chip.textContent = imageCount > 0
-      ? `✓ saved · ${imageCount} image${imageCount > 1 ? 's' : ''}`
-      : '✓ saved';
-    who.appendChild(chip);
+  requestAnimationFrame(step);
+}
+
+function markBubbleSaved(note, imageCount){
+  if (!note) return;
+  note.classList.remove('pending');
+  note.classList.add('saved');
+  // Hide the spinner row; tag flips to "✓ SAVED" colour via CSS.
+  const status = note.querySelector('.yn-status');
+  if (status) status.style.display = 'none';
+  const tag = note.querySelector('.yn-tag');
+  if (tag) {
+    tag.textContent = imageCount && imageCount > 0
+      ? `YOU · ✓ ${imageCount} img`
+      : 'YOU · ✓ SAVED';
   }
 }
 
@@ -3200,8 +5111,15 @@ async function openCameraRoll(yu){
       YFCC_PHOTO_CACHE[yu.id] = payload;
     }
 
+    // Count only dated photos — they're the ones the grid will
+    // actually render (undated photos are dropped, see crmRenderGrid).
+    const datedCount = (payload.photos || []).filter(p => {
+      if (!p || !p.date) return false;
+      const d = new Date(String(p.date).replace(' ', 'T'));
+      return !isNaN(d);
+    }).length;
     sub.textContent =
-      `${payload.photos.length.toLocaleString()} photos` +
+      `${datedCount.toLocaleString()} photos` +
       (yu.years ? ` · ${yu.years}` : '');
     crmRenderGrid(payload.photos);
   } catch (e) {
@@ -3230,14 +5148,23 @@ function crmRenderGrid(photos){
   pill.id = 'crm-scroll-date';
   wrap.appendChild(pill);
 
-  if (!photos || !photos.length) {
+  // Drop undated photos entirely — a "Date unknown" bucket in the
+  // middle of a chronological scroll is jarring and not useful for
+  // visitors. We treat the camera roll as a real timeline.
+  const dated = (photos || []).filter(p => {
+    if (!p || !p.date) return false;
+    const d = new Date(String(p.date).replace(' ', 'T'));
+    return !isNaN(d);
+  });
+
+  if (!dated.length) {
     wrap.innerHTML += '<div class="crm-loading">no photos</div>';
     return;
   }
 
   let curKey = null;
   let curRow = null;
-  photos.forEach(p => {
+  dated.forEach(p => {
     const mk = crmMonthKey(p.date);
     if (mk.key !== curKey) {
       curKey = mk.key;
