@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>camroll · dataviewer</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Caveat:wght@500;600;700&display=swap" rel="stylesheet">
+<script>
+  // Set theme before paint to avoid flash. Default LIGHT — sticky-
+  // board family. Honours the visitor's localStorage choice first.
+  (function() {
+    var t = null;
+    try { t = localStorage.getItem('camroll-theme'); } catch (e) {}
+    if (!t) t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', t);
+  })();
+</script>
+<style>
+/* ── THEME TOKENS — warm sticky-board palette, shared with the rest
+   of the camroll family (index.html, demo, questions_collection). */
+:root,
+:root[data-theme="dark"] {
+  --bg:            #15140f;       /* warm near-black */
+  --bg-elev:       #1f1d18;
+  --bg-elev-2:     #25221c;
+  --bg-elev-3:     #2c2922;
+  --border:        rgba(255,255,255,0.10);
+  --border-strong: rgba(255,255,255,0.22);
+  --text:          #f6f2e8;
+  --text-mid:      #e1dccd;
+  --text-soft:     #b8b2a3;
+  --text-dim:      #918a7d;
+  --text-faint:    #6b6557;
+  --text-ghost:    #4a463c;
+  --accent:        #c8f060;
+  --accent-text:   #c8f060;
+  --accent-bub-bg: #191e10;
+  --accent-bub-text: #d0e498;
+  --accent-soft:   rgba(200,240,96,0.16);
+  --accent-glow:   rgba(200,240,96,0.40);
+  --accent-tint:   rgba(200,240,96,0.06);
+  --accent-ring:   rgba(200,240,96,0.30);
+  --highlight:     #c8f060;
+  --highlight-glow: rgba(200,240,96,0.55);
+  --correct:       #c8f060;
+  --correct-soft:  rgba(200,240,96,0.13);
+  --correct-text:  #c8f060;
+  --wrong:         #f06060;
+  --wrong-soft:    rgba(240,96,96,0.12);
+  --wrong-text:    #f08080;
+  --shadow:        rgba(0,0,0,0.45);
+  --lb-bg:         rgba(0,0,0,0.94);
+  --hover-overlay-bg: rgba(0,0,0,0.65);
+  --scrollbar:     rgba(255,255,255,0.18);
+  --header-bg:     rgba(21,20,15,0.82);
+  --grid-dot:      rgba(255,255,255,0.10);
+}
+:root[data-theme="light"] {
+  --bg:            #f6f5f1;       /* warm cream */
+  --bg-elev:       #ffffff;
+  --bg-elev-2:     #f0eee7;
+  --bg-elev-3:     #e8e5dc;
+  --border:        rgba(0,0,0,0.10);
+  --border-strong: rgba(0,0,0,0.28);
+  --text:          #1a1812;
+  --text-mid:      #2a2620;
+  --text-soft:     #4a443a;
+  --text-dim:      #6a6258;
+  --text-faint:    #8a8278;
+  --text-ghost:    #b5ad9f;
+  --accent:        #2a6310;
+  --accent-text:   #2a6310;
+  --accent-bub-bg: #eef5dc;
+  --accent-bub-text: #1c3a08;
+  --accent-soft:   rgba(42,99,16,0.18);
+  --accent-glow:   rgba(42,99,16,0.35);
+  --accent-tint:   rgba(42,99,16,0.07);
+  --accent-ring:   rgba(42,99,16,0.45);
+  --highlight:      #e91e63;
+  --highlight-glow: rgba(233,30,99,0.55);
+  --correct:       #2a6310;
+  --correct-soft:  rgba(42,99,16,0.15);
+  --correct-text:  #1f5008;
+  --wrong:         #c43030;
+  --wrong-soft:    rgba(196,48,48,0.10);
+  --wrong-text:    #a32020;
+  --shadow:        rgba(0,0,0,0.10);
+  --lb-bg:         rgba(20,20,20,0.92);
+  --hover-overlay-bg: rgba(255,255,255,0.85);
+  --scrollbar:     rgba(0,0,0,0.18);
+  --header-bg:     rgba(246,245,241,0.85);
+  --grid-dot:      rgba(0,0,0,0.13);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg); color: var(--text); font-size: 16px;
+  transition: background 0.18s, color 0.18s;
+}
+
+/* ── SHARED HEADER BAR — matches the rest of the camroll family. */
+.site-header {
+  position: fixed; top: 0; left: 0; right: 0;
+  height: 54px; z-index: 60;
+  display: flex; align-items: center;
+  padding: 0 22px; gap: 14px;
+  background: var(--header-bg);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.site-header .title {
+  font-size: 14px; font-weight: 500; color: var(--text);
+  letter-spacing: 0.02em; white-space: nowrap;
+}
+.site-header .title strong { color: var(--accent-text); font-weight: 600; }
+.site-header .sub {
+  font-size: 12.5px; color: var(--text-dim);
+  flex: 1; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.site-header nav {
+  display: flex; align-items: center; gap: 4px;
+  margin-left: auto;
+}
+.site-header nav a {
+  color: var(--text-soft); text-decoration: none;
+  font-size: 12.5px; font-weight: 500;
+  padding: 6px 11px; border-radius: 6px;
+  letter-spacing: 0.02em;
+  transition: color 0.15s, background 0.15s;
+}
+.site-header nav a:hover {
+  color: var(--text); background: var(--bg-elev-2);
+}
+.site-header nav a.active {
+  color: var(--text); background: var(--bg-elev-2);
+}
+@media (max-width: 720px) {
+  .site-header .sub { display: none; }
+  .site-header nav { gap: 2px; }
+  .site-header nav a { padding: 6px 7px; font-size: 12px; }
+}
+
+/* Screens sit BELOW the 54px header. */
+.screen { width: 100%; height: calc(100% - 54px); margin-top: 54px;
+          display: none; flex-direction: column; }
+.screen.active { display: flex; }
+
+/* ── THEME TOGGLE ─── */
+.theme-toggle {
+  background: none; border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text-soft); cursor: pointer;
+  width: 30px; height: 30px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 14px; line-height: 1; padding: 0;
+  transition: all 0.15s; flex-shrink: 0;
+}
+.theme-toggle:hover { color: var(--text); border-color: var(--border-strong); background: var(--bg-elev); }
+.theme-toggle .icon-dark, .theme-toggle .icon-light { display: none; }
+:root[data-theme="dark"] .theme-toggle .icon-dark { display: inline; }
+:root[data-theme="light"] .theme-toggle .icon-light { display: inline; }
+
+/* ── PICKER ──────────────────────────────────────────────── */
+#picker {
+  padding: 2.5rem 2rem 2rem; overflow-y: auto; position: relative;
+  /* Subtle dotted-grid backdrop, same as the sticky board / index. */
+  background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.picker-inner { width: 100%; max-width: 1100px; margin: 0 auto; }
+.picker-eyebrow {
+  font-size: 13px; letter-spacing: 0.04em; color: var(--text-mid);
+  margin-bottom: 0.7rem; font-weight: 500;
+}
+.picker-title {
+  font-size: 2.6rem; font-weight: 500; line-height: 1.15;
+  margin-bottom: 0.6rem; color: var(--text);
+  letter-spacing: -0.015em;
+}
+.picker-title strong { font-weight: 600; }
+/* Marker-highlighter accent — same family-wide yellow. */
+.picker-title .hl {
+  background:
+    linear-gradient(180deg,
+      rgba(255,232,0,0.10) 0%,
+      rgba(255,232,0,0.95) 18%,
+      rgba(255,232,0,0.95) 78%,
+      rgba(255,232,0,0.10) 100%),
+    #fff05a;
+  color: #1a1812;
+  padding: 0 10px; border-radius: 3px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+  font-weight: 600;
+}
+/* Scribble tagline above the title — Caveat marker font. */
+.picker-tagline {
+  font-family: 'Caveat', cursive;
+  font-size: 24px; font-weight: 600;
+  color: var(--text-soft);
+  display: inline-block;
+  transform: rotate(-2deg);
+  margin-bottom: 14px;
+}
+.picker-sub {
+  font-size: 16px; color: var(--text-mid);
+  margin: 0 0 2.2rem; line-height: 1.6;
+}
+.picker-sub a { color: var(--text); text-decoration: underline; }
+
+.users-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+}
+@media (max-width: 880px) { .users-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 640px) { .users-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 400px) { .users-grid { grid-template-columns: 1fr; } }
+
+.user-card {
+  background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px;
+  overflow: hidden; cursor: pointer; transition: all 0.18s; position: relative;
+}
+.user-card:hover { border-color: var(--border-strong); transform: translateY(-2px); box-shadow: 0 8px 28px var(--shadow); }
+.user-card:hover .card-hover { opacity: 1; }
+.card-mosaic { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; height: 118px; }
+.card-mosaic-cell { background: var(--bg-elev-3); overflow: hidden; }
+.card-mosaic-cell img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s; display: block; }
+.user-card:hover .card-mosaic-cell img { transform: scale(1.06); }
+.card-info { padding: 10px 12px 11px; display: flex; gap: 10px; align-items: center; }
+.card-avatar { width: 28px; height: 28px; border-radius: 50%; overflow: hidden; background: var(--bg-elev-3); flex-shrink: 0; }
+.card-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.card-name { font-weight: 500; font-size: 15px; margin-bottom: 3px; color: var(--text); }
+.card-meta { font-size: 12.5px; color: var(--text-dim); }
+.card-hover {
+  position: absolute; inset: 0;
+  background: var(--accent-tint);
+  border: 1.5px solid var(--accent-ring); border-radius: 8px;
+  opacity: 0; transition: opacity 0.18s;
+  display: flex; align-items: center; justify-content: center;
+}
+.card-hover span {
+  font-size: 12.5px; font-weight: 500; color: var(--accent-text);
+  background: var(--hover-overlay-bg); padding: 6px 16px; border-radius: 3px; letter-spacing: 0.07em;
+}
+
+/* "Coming soon" disabled cards (no qa.json yet) */
+.user-card.disabled { cursor: not-allowed; opacity: 0.55; }
+.user-card.disabled:hover { transform: none; box-shadow: none; border-color: var(--border); }
+.user-card.disabled .card-hover { display: none; }
+.card-badge {
+  position: absolute; top: 8px; right: 8px;
+  font-size: 10.5px; letter-spacing: 0.08em; font-weight: 500;
+  color: var(--text-dim); background: var(--bg-elev-2);
+  border: 1px solid var(--border); border-radius: 3px;
+  padding: 3px 7px; text-transform: uppercase;
+}
+
+.user-card.reveal { animation: card-in 0.34s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.show-more-wrap { display: flex; justify-content: flex-start; margin-top: 1.6rem; }
+.show-more-btn {
+  background: none; border: none; padding: 6px 4px;
+  font-size: 14px; letter-spacing: 0.06em;
+  color: var(--text-soft); cursor: pointer; font-weight: 500;
+  transition: color 0.15s;
+}
+.show-more-btn:hover { color: var(--accent-text); }
+.show-more-btn .arrow { display: inline-block; transition: transform 0.18s; margin-left: 4px; }
+.show-more-btn:hover .arrow { transform: translateX(3px); }
+.show-more-btn .count { color: var(--text-faint); margin-left: 0.4em; }
+
+.picker-footer {
+  margin-top: 2.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);
+  font-size: 13px; color: var(--text-faint); line-height: 1.7;
+}
+.picker-footer a { color: var(--text-soft); text-decoration: underline; }
+.picker-footer a:hover { color: var(--accent-text); }
+
+.cross-link {
+  display: inline-block; margin-top: 0.5rem;
+  font-size: 13px; color: var(--text-soft);
+  text-decoration: none; padding: 6px 10px;
+  border: 1px solid var(--border); border-radius: 4px;
+  transition: all 0.15s;
+}
+.cross-link:hover { color: var(--accent-text); border-color: var(--accent-ring); }
+
+/* ── QUIZ SCREEN ─ same demo-frame split as the agent demo ── */
+#quiz {
+  flex-direction: row;
+  padding: 1.5rem;
+  background: var(--bg);
+  justify-content: center;
+  align-items: stretch;
+}
+.quiz-frame {
+  width: 100%;
+  max-width: 1240px;
+  display: flex; flex-direction: row;
+  border: 1px solid var(--border); border-radius: 10px;
+  overflow: hidden; background: var(--bg);
+  box-shadow: 0 8px 32px var(--shadow);
+  min-height: 0;
+}
+@media (max-width: 1000px) {
+  #quiz { padding: 0.5rem; }
+  .quiz-frame { border-radius: 6px; }
+}
+
+/* ── LEFT: photo panel (mirrors camroll_demo.html .photo-panel) ── */
+.photo-panel {
+  width: 58%; display: flex; flex-direction: column;
+  border-right: 1px solid var(--border); overflow: hidden;
+  min-width: 0;
+}
+.panel-bar {
+  height: 46px; display: flex; align-items: center; gap: 10px;
+  padding: 0 1rem; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.back-btn {
+  background: none; border: none; color: var(--text-dim); cursor: pointer;
+  font-size: 20px; padding: 4px 8px; transition: color 0.15s; line-height: 1;
+}
+.back-btn:hover { color: var(--text); }
+.user-av { width: 30px; height: 30px; border-radius: 50%; overflow: hidden; background: var(--bg-elev-3); flex-shrink: 0; }
+.user-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.user-info-name { font-size: 15.5px; font-weight: 500; color: var(--text); }
+.user-info-meta { font-size: 12.5px; color: var(--text-dim); }
+.bar-spacer { margin-left: auto; }
+.flickr-link {
+  font-size: 12.5px; color: var(--text-dim);
+  text-decoration: none; padding: 5px 10px;
+  border: 1px solid var(--border); border-radius: 4px;
+  transition: all 0.15s;
+}
+.flickr-link:hover { color: var(--accent-text); border-color: var(--accent-ring); }
+
+.view-toggle {
+  display: inline-flex; border: 1px solid var(--border); border-radius: 5px;
+  overflow: hidden; background: var(--bg);
+}
+.view-btn {
+  background: none; border: none; padding: 6px 12px;
+  font-size: 12.5px; font-weight: 500; letter-spacing: 0.04em;
+  color: var(--text-dim); cursor: pointer; transition: all 0.15s;
+}
+.view-btn + .view-btn { border-left: 1px solid var(--border); }
+.view-btn:hover { color: var(--text); }
+.view-btn.active { background: var(--accent-tint); color: var(--accent-text); }
+
+.grid-scroll {
+  flex: 1; overflow-y: auto; padding: 0 1.25rem 1.5rem;
+  position: relative;
+}
+.grid-scroll::-webkit-scrollbar { width: 6px; }
+.grid-scroll::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 3px; }
+.grid-scroll::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+
+.scroll-date {
+  position: absolute; top: 50%; right: 10px;
+  transform: translateY(-50%);
+  background: var(--bg-elev);
+  border: 1px solid var(--border-strong);
+  border-radius: 14px; padding: 6px 12px;
+  font-size: 13px; font-weight: 500; color: var(--text);
+  letter-spacing: 0.04em; pointer-events: none;
+  opacity: 0; transition: opacity 0.18s;
+  z-index: 5; box-shadow: 0 4px 16px var(--shadow);
+  white-space: nowrap;
+}
+.scroll-date.show { opacity: 1; }
+
+.loading-state {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  color: var(--text-faint); font-size: 13px; letter-spacing: 0.04em;
+  padding: 2rem;
+}
+.loading-state.error { color: #c87060; }
+
+.event-group { margin-bottom: 2px; }
+.event-label {
+  font-size: 14px; font-weight: 500; color: var(--text-mid);
+  padding: 14px 1.25rem 6px;
+  margin: 0 -1.25rem;
+  position: sticky; top: 0; background: var(--bg); z-index: 2;
+}
+
+.photo-row {
+  display: grid;
+  grid-template-columns: repeat(var(--row-density, 4), 1fr);
+  gap: 2px;
+}
+.thumb {
+  aspect-ratio: 1; overflow: hidden; cursor: pointer; position: relative;
+  background: var(--bg-elev-2); transition: opacity 0.12s;
+}
+.thumb:hover { opacity: 0.82; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb img.broken { opacity: 0.1; }
+.thumb.lit {
+  outline: 3px solid var(--highlight); outline-offset: -3px;
+  z-index: 1; box-shadow: 0 0 24px var(--highlight-glow);
+  animation: lit-pulse 1.6s ease-out 2;
+}
+@keyframes lit-pulse {
+  0%   { box-shadow: 0 0 0   var(--highlight-glow); }
+  40%  { box-shadow: 0 0 36px var(--highlight-glow); }
+  100% { box-shadow: 0 0 24px var(--highlight-glow); }
+}
+
+/* ── RIGHT: quiz panel ────────────────────────────────────── */
+.quiz-panel {
+  width: 42%; display: flex; flex-direction: column;
+  overflow: hidden; background: var(--bg);
+}
+.quiz-bar {
+  height: 46px; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 1rem; border-bottom: 1px solid var(--border); flex-shrink: 0;
+  gap: 10px;
+}
+.quiz-bar-title { font-size: 14px; font-weight: 500; color: var(--text-mid); letter-spacing: 0.02em; }
+.quiz-bar-right { display: flex; align-items: center; gap: 10px; }
+.score-pill {
+  font-size: 13px; font-weight: 500;
+  background: var(--bg-elev); border: 1px solid var(--border);
+  border-radius: 14px; padding: 4px 11px; color: var(--text-mid);
+  letter-spacing: 0.02em; white-space: nowrap;
+}
+.score-pill .score-correct { color: var(--correct-text); font-weight: 600; }
+
+.quiz-scroll {
+  flex: 1; overflow-y: auto;
+  padding: 1.25rem 1.1rem 2rem;
+}
+.quiz-scroll::-webkit-scrollbar { width: 4px; }
+.quiz-scroll::-webkit-scrollbar-thumb { background: var(--bg-elev-3); border-radius: 2px; }
+
+.quiz-intro {
+  margin-bottom: 1.4rem; padding-bottom: 1.1rem;
+  border-bottom: 1px solid var(--border);
+}
+.quiz-greeting {
+  font-size: 1.2rem; font-weight: 300; line-height: 1.4; color: var(--text);
+  margin-bottom: 0.4rem;
+}
+.quiz-greeting strong { font-weight: 500; }
+.quiz-greeting .user-name { color: var(--accent-text); font-weight: 500; }
+.quiz-hint {
+  font-size: 13.5px; color: var(--text-soft); line-height: 1.55;
+  margin-top: 0.4rem;
+}
+
+.q-card {
+  background: var(--bg-elev); border: 1px solid var(--border);
+  border-radius: 7px; padding: 13px 14px;
+  margin-bottom: 9px;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+.q-card:hover { border-color: var(--border-strong); }
+.q-card.answered.correct { border-color: var(--correct); box-shadow: 0 0 0 1px var(--correct-soft) inset; }
+.q-card.answered.wrong   { border-color: var(--wrong); box-shadow: 0 0 0 1px var(--wrong-soft) inset; }
+
+.q-head {
+  display: flex; align-items: baseline; gap: 9px;
+  margin-bottom: 9px;
+}
+.q-num {
+  font-size: 11.5px; color: var(--text-faint);
+  font-variant-numeric: tabular-nums; letter-spacing: 0.04em;
+  flex-shrink: 0; min-width: 26px;
+}
+.q-text { font-size: 14.5px; line-height: 1.5; color: var(--text); }
+
+.q-choices { display: flex; flex-direction: column; gap: 5px; margin-left: 35px; }
+.q-choice {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 5px; padding: 8px 11px;
+  font-family: 'DM Sans', sans-serif; font-size: 13.5px;
+  color: var(--text); text-align: left;
+  cursor: pointer; transition: all 0.13s;
+  display: flex; align-items: center; gap: 10px;
+}
+.q-choice:hover:not(:disabled) {
+  border-color: var(--accent-ring);
+  background: var(--accent-tint);
+}
+.q-choice:disabled { cursor: default; }
+.q-choice .letter {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 50%;
+  border: 1px solid var(--border-strong);
+  font-size: 11px; font-weight: 500; color: var(--text-dim);
+  flex-shrink: 0;
+  transition: all 0.13s;
+}
+.q-choice .label { flex: 1; }
+.q-choice .mark { font-size: 14px; opacity: 0; transition: opacity 0.13s; font-weight: 600; }
+.q-choice.correct {
+  background: var(--correct-soft);
+  border-color: var(--correct);
+  color: var(--text);
+}
+.q-choice.correct .letter {
+  background: var(--correct);
+  border-color: var(--correct);
+  color: #0f0f0f;
+}
+:root[data-theme="light"] .q-choice.correct .letter { color: #ffffff; }
+.q-choice.correct .mark { opacity: 1; color: var(--correct-text); }
+.q-choice.wrong {
+  background: var(--wrong-soft);
+  border-color: var(--wrong);
+}
+.q-choice.wrong .letter {
+  background: var(--wrong);
+  border-color: var(--wrong);
+  color: #ffffff;
+}
+.q-choice.wrong .mark { opacity: 1; color: var(--wrong-text); }
+.q-choice.dimmed { opacity: 0.45; }
+
+/* "show on the left ↖" mini chip that appears after answering an episodic Q */
+.q-evidence-note {
+  margin: 9px 0 0 35px;
+  font-size: 12px; color: var(--text-dim);
+  display: flex; align-items: center; gap: 6px;
+  opacity: 0; max-height: 0; overflow: hidden;
+  transition: opacity 0.18s, max-height 0.22s ease, margin 0.18s;
+}
+.q-evidence-note.show { opacity: 1; max-height: 60px; margin-top: 9px; }
+.q-evidence-note .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+.q-evidence-note button {
+  background: none; border: none; padding: 0;
+  font-size: 12px; color: var(--accent-text);
+  cursor: pointer; text-decoration: underline;
+  text-decoration-color: var(--accent-soft); text-underline-offset: 2px;
+  font-family: 'DM Sans', sans-serif;
+}
+.q-evidence-note button:hover { color: var(--accent); }
+.q-evidence-missing {
+  margin: 9px 0 0 35px;
+  font-size: 12px; color: var(--text-faint); font-style: italic;
+}
+
+/* Final score banner */
+.score-banner {
+  margin: 1.6rem 0 0;
+  padding: 1.3rem 1.3rem;
+  border: 1px solid var(--accent-ring);
+  background: var(--accent-tint);
+  border-radius: 8px;
+  text-align: center;
+}
+.score-banner-num {
+  font-size: 1.7rem; font-weight: 300; color: var(--accent-text);
+  margin-bottom: 0.3rem;
+}
+.score-banner-num strong { font-weight: 500; }
+.score-banner-msg {
+  font-size: 13.5px; color: var(--text-mid); line-height: 1.5;
+}
+
+/* ── LIGHTBOX ── */
+#lb {
+  position: fixed; inset: 0; z-index: 500; background: var(--lb-bg);
+  display: none; align-items: center; justify-content: center;
+  padding: 2rem;
+}
+#lb.open { display: flex; }
+#lb-img { max-width: 88vw; max-height: 82vh; border-radius: 4px; object-fit: contain; }
+#lb-close {
+  position: absolute; top: 1.25rem; right: 1.5rem;
+  font-size: 26px; color: #cbc7bd; cursor: pointer; background: none; border: none;
+  transition: color 0.15s;
+}
+#lb-close:hover { color: #fff; }
+</style>
+</head>
+<body>
+
+<!-- Shared header — same chrome as the rest of the camroll family. -->
+<header class="site-header">
+  <span class="title"><strong>camroll</strong></span>
+  <span class="sub">dataviewer · human-evaluation quiz over real camera rolls</span>
+  <nav>
+    <a href="index.html">Paper</a>
+    <a href="camroll_demo.html">Demo</a>
+    <a href="camroll_questions_collection.html">Questions</a>
+    <a href="camroll_dataviewer.html" class="active">Data</a>
+  </nav>
+  <button class="theme-toggle" title="Toggle theme" onclick="toggleTheme()">
+    <span class="icon-dark">☀</span><span class="icon-light">☾</span>
+  </button>
+</header>
+
+<!-- PICKER -->
+<div class="screen active" id="picker">
+  <div class="picker-inner">
+    <div class="picker-tagline">your turn — can you answer? ↓</div>
+    <div class="picker-title">Try the <span class="hl">camroll quiz</span></div>
+    <div class="picker-sub">
+      Pick a YFCC100M user, then try to answer 40 multiple-choice questions about
+      <em>specific moments</em> in their camera roll — the relevant photo lights up after
+      each answer. It's the human-evaluation companion to the
+      <a href="camroll_demo.html">live agent demo</a>.
+    </div>
+    <div class="users-grid" id="users-grid"></div>
+    <div class="show-more-wrap" id="show-more-wrap" style="display:none;">
+      <button class="show-more-btn" id="show-more-btn" onclick="showAllUsers()">
+        show all users<span class="count" id="show-more-count"></span><span class="arrow">→</span>
+      </button>
+    </div>
+    <div class="picker-footer" id="picker-footer">Loading…</div>
+  </div>
+</div>
+
+<!-- QUIZ — same split-frame layout as the agent demo -->
+<div class="screen" id="quiz">
+ <div class="quiz-frame">
+  <!-- LEFT: photo panel -->
+  <div class="photo-panel">
+    <div class="panel-bar">
+      <button class="back-btn" onclick="goBack()" title="Back">←</button>
+      <div class="user-av"><img id="u-avatar" src="" alt=""></div>
+      <div>
+        <div class="user-info-name" id="u-name"></div>
+        <div class="user-info-meta" id="u-meta"></div>
+      </div>
+      <div class="bar-spacer"></div>
+      <div class="view-toggle" id="density-toggle">
+        <button class="view-btn" data-density="3"  onclick="setDensity(3)">3</button>
+        <button class="view-btn active" data-density="4"  onclick="setDensity(4)">4</button>
+        <button class="view-btn" data-density="5"  onclick="setDensity(5)">5</button>
+        <button class="view-btn" data-density="7"  onclick="setDensity(7)">7</button>
+        <button class="view-btn" data-density="10" onclick="setDensity(10)">10</button>
+      </div>
+      <a id="u-flickr" class="flickr-link" target="_blank" rel="noopener">flickr ↗</a>
+    </div>
+    <div class="grid-scroll" id="grid-scroll">
+      <div class="loading-state" id="grid-loading">loading photos…</div>
+      <div class="scroll-date" id="scroll-date"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: quiz panel -->
+  <div class="quiz-panel">
+    <div class="quiz-bar">
+      <span class="quiz-bar-title">📝 camroll-quiz</span>
+      <div class="quiz-bar-right">
+        <div class="score-pill" id="score-pill">
+          <span class="score-correct" id="score-correct">0</span> / <span id="score-total">0</span>
+        </div>
+      </div>
+    </div>
+    <div class="quiz-scroll" id="quiz-scroll">
+      <div class="loading-state" id="quiz-loading">loading questions…</div>
+    </div>
+  </div>
+ </div>
+</div>
+
+<!-- LIGHTBOX -->
+<div id="lb">
+  <button id="lb-close" onclick="closeLB()">×</button>
+  <img id="lb-img" src="" alt="">
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────
+// THEME
+// ─────────────────────────────────────────────────────────────────
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem('camroll-theme', next); } catch (e) {}
+}
+
+// ─────────────────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────────────────
+let MANIFEST = null;
+let currentUser = null;     // {stub, qa, photos: {pid -> photo}, sortedPhotos: [...]}
+let answered = 0;
+let correct = 0;
+let total = 0;
+
+const userCache = {};
+const probedAvailability = {};
+
+const MONTHS = ['January','February','March','April','May','June',
+                'July','August','September','October','November','December'];
+
+// ─────────────────────────────────────────────────────────────────
+// Boot
+// ─────────────────────────────────────────────────────────────────
+async function boot() {
+  try {
+    const res = await fetch('yfcc_users.json', { cache: 'no-cache' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    MANIFEST = await res.json();
+  } catch (e) {
+    document.getElementById('users-grid').innerHTML =
+      `<div style="color:#c87060;font-size:14px;padding:1rem;">
+         Could not load yfcc_users.json — ${e.message}
+       </div>`;
+    return;
+  }
+  await renderPicker();
+  renderFooter();
+}
+
+function renderFooter() {
+  document.getElementById('picker-footer').innerHTML =
+    `${MANIFEST.users.length} users · 40 questions each · ` +
+    `<a href="https://multimediacommons.wordpress.com/yfcc100m-core-dataset/" target="_blank" rel="noopener">YFCC100M</a> · ` +
+    `<a href="https://github.com/thaoshibe/camroll" target="_blank" rel="noopener">source on github</a><br>` +
+    `<a class="cross-link" href="camroll_demo.html">← watch the live agent demo instead</a>`;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// PICKER
+// ─────────────────────────────────────────────────────────────────
+const INITIAL_USERS = 4;
+
+async function probe(uid) {
+  if (uid in probedAvailability) return probedAvailability[uid];
+  try {
+    const r = await fetch(qaPath(uid), { method: 'GET', cache: 'no-cache' });
+    probedAvailability[uid] = r.ok;
+    return r.ok;
+  } catch (e) {
+    probedAvailability[uid] = false;
+    return false;
+  }
+}
+
+function qaPath(uid)  { return `data/release/${uid}/qa.json`; }
+function csvPath(uid) { return `data/release/${uid}/photos.csv`; }
+
+function makeUserCard(u, reveal) {
+  const card = document.createElement('div');
+  card.className = 'user-card' + (reveal ? ' reveal' : '');
+  card.dataset.uid = u.id;
+  card.innerHTML = `
+    <div class="card-mosaic">
+      ${u.preview.slice(0,4).map(src =>
+        `<div class="card-mosaic-cell">
+           <img src="${src}" loading="lazy" alt=""
+                onerror="this.style.opacity=0.15">
+         </div>`
+      ).join('')}
+    </div>
+    <div class="card-info">
+      <div class="card-avatar"><img src="${u.avatar}" loading="lazy" alt=""></div>
+      <div>
+        <div class="card-name">${escapeHtml(u.name)}</div>
+        <div class="card-meta">${u.years} · ${u.photoCount.toLocaleString()} photos</div>
+      </div>
+    </div>
+    <div class="card-hover"><span>Take quiz →</span></div>`;
+  card.onclick = () => {
+    if (card.classList.contains('disabled')) return;
+    openUser(u);
+  };
+  probe(u.id).then(ok => {
+    if (!ok) {
+      card.classList.add('disabled');
+      card.title = "Benchmark questions haven't been published for this user yet — photos are still on Flickr though";
+      const badge = document.createElement('div');
+      badge.className = 'card-badge';
+      badge.textContent = 'questions soon';
+      card.appendChild(badge);
+    }
+  });
+  return card;
+}
+
+async function renderPicker() {
+  const grid = document.getElementById('users-grid');
+  grid.innerHTML = '';
+  const visible = MANIFEST.users.slice(0, INITIAL_USERS);
+  visible.forEach(u => grid.appendChild(makeUserCard(u, false)));
+
+  const moreWrap = document.getElementById('show-more-wrap');
+  const remaining = MANIFEST.users.length - INITIAL_USERS;
+  if (remaining > 0) {
+    document.getElementById('show-more-count').textContent = ` (+${remaining})`;
+    moreWrap.style.display = 'flex';
+  } else {
+    moreWrap.style.display = 'none';
+  }
+}
+
+function showAllUsers() {
+  const grid = document.getElementById('users-grid');
+  const rest = MANIFEST.users.slice(INITIAL_USERS);
+  rest.forEach((u, i) => {
+    const card = makeUserCard(u, true);
+    card.style.animationDelay = `${Math.min(i * 35, 350)}ms`;
+    grid.appendChild(card);
+  });
+  document.getElementById('show-more-wrap').style.display = 'none';
+}
+
+// ─────────────────────────────────────────────────────────────────
+// OPEN USER → QUIZ
+// ─────────────────────────────────────────────────────────────────
+async function openUser(stub) {
+  document.getElementById('picker').classList.remove('active');
+  document.getElementById('quiz').classList.add('active');
+
+  document.getElementById('u-name').textContent = stub.name;
+  document.getElementById('u-meta').textContent =
+    `${stub.years} · ${stub.photoCount.toLocaleString()} photos`;
+  document.getElementById('u-avatar').src = stub.avatar;
+  document.getElementById('grid-scroll').innerHTML =
+    '<div class="loading-state">loading photos…</div>' +
+    '<div class="scroll-date" id="scroll-date"></div>';
+  document.getElementById('quiz-scroll').innerHTML =
+    '<div class="loading-state">loading questions…</div>';
+
+  answered = 0; correct = 0; total = 0;
+  updateScore();
+
+  let payload = userCache[stub.id];
+  if (!payload) {
+    try {
+      const [qaRes, csvRes] = await Promise.all([
+        fetch(qaPath(stub.id), { cache: 'no-cache' }),
+        fetch(csvPath(stub.id), { cache: 'no-cache' }),
+      ]);
+      if (!qaRes.ok)  throw new Error(`qa.json HTTP ${qaRes.status}`);
+      if (!csvRes.ok) throw new Error(`photos.csv HTTP ${csvRes.status}`);
+      const qa = await qaRes.json();
+      const csv = await csvRes.text();
+      const { byId, sorted, nsid } = parsePhotosCsv(csv);
+      payload = { qa, photos: byId, sortedPhotos: sorted, nsid };
+      userCache[stub.id] = payload;
+    } catch (e) {
+      document.getElementById('quiz-scroll').innerHTML =
+        `<div class="loading-state error">Failed to load: ${escapeHtml(e.message)}</div>`;
+      document.getElementById('grid-scroll').innerHTML =
+        `<div class="loading-state error">Failed to load photos</div>`;
+      return;
+    }
+  }
+
+  currentUser = { stub, ...payload };
+
+  // Flickr profile link in the header
+  const flickr = document.getElementById('u-flickr');
+  flickr.href = payload.nsid
+    ? `https://www.flickr.com/photos/${payload.nsid.replace('@', '_')}/`
+    : '#';
+
+  setDensity(currentDensity);
+  renderGrid(payload.sortedPhotos);
+  renderQuiz(stub, payload);
+}
+
+function goBack() {
+  document.getElementById('quiz').classList.remove('active');
+  document.getElementById('picker').classList.add('active');
+  currentUser = null;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// CSV parsing (handles quoted fields with embedded commas)
+// ─────────────────────────────────────────────────────────────────
+function parseCsvLine(line) {
+  const out = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQ) {
+      if (c === '"' && line[i+1] === '"') { cur += '"'; i++; }
+      else if (c === '"') inQ = false;
+      else cur += c;
+    } else {
+      if (c === ',') { out.push(cur); cur = ''; }
+      else if (c === '"' && cur === '') inQ = true;
+      else cur += c;
+    }
+  }
+  out.push(cur);
+  return out;
+}
+
+function parsePhotosCsv(text) {
+  const lines = text.split(/\r?\n/);
+  const header = parseCsvLine(lines[0]);
+  const idx = name => header.indexOf(name);
+  const cols = {
+    photoid:   idx('photoid'),
+    uid:       idx('uid'),
+    farmid:    idx('farmid'),
+    serverid:  idx('serverid'),
+    secret:    idx('secret'),
+    pageurl:   idx('pageurl'),
+    title:     idx('title'),
+    datetaken: idx('datetaken'),
+  };
+  const byId = {};
+  const arr = [];
+  let nsid = null;
+  for (let i = 1; i < lines.length; i++) {
+    if (!lines[i]) continue;
+    const r = parseCsvLine(lines[i]);
+    const pid = r[cols.photoid];
+    if (!pid) continue;
+    if (nsid === null) nsid = r[cols.uid] || null;
+    const photo = {
+      id:     pid,
+      farm:   r[cols.farmid],
+      server: r[cols.serverid],
+      secret: r[cols.secret],
+      page:   r[cols.pageurl],
+      title:  r[cols.title],
+      date:   r[cols.datetaken],
+    };
+    byId[pid] = photo;
+    arr.push(photo);
+  }
+  // newest-first
+  arr.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  return { byId, sorted: arr, nsid };
+}
+
+function flickrUrl(photo, size = 'b') {
+  if (!photo) return '';
+  return `https://farm${photo.farm}.staticflickr.com/${photo.server}/${photo.id}_${photo.secret}_${size}.jpg`;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// PHOTO GRID — newest first, grouped by month (mirrors the demo)
+// ─────────────────────────────────────────────────────────────────
+const DEFAULT_DENSITY = 4;
+let currentDensity = DEFAULT_DENSITY;
+
+function monthKey(isoDate) {
+  if (!isoDate) return { key: '0000-00', label: 'Date unknown' };
+  const d = new Date(isoDate.replace(' ', 'T'));
+  if (isNaN(d)) return { key: '0000-00', label: 'Date unknown' };
+  const y = d.getFullYear();
+  const m = d.getMonth();
+  return {
+    key: `${y}-${String(m).padStart(2, '0')}`,
+    label: `${MONTHS[m]} ${y}`,
+  };
+}
+
+function setDensity(n) {
+  currentDensity = n;
+  document.querySelector('.photo-panel').style.setProperty('--row-density', n);
+  document.querySelectorAll('#density-toggle .view-btn').forEach(b => {
+    b.classList.toggle('active', Number(b.dataset.density) === n);
+  });
+}
+
+function makeThumb(p) {
+  const t = document.createElement('div');
+  t.className = 'thumb';
+  t.setAttribute('data-pid', p.id);
+  t.id = 'th-' + p.id;
+  t.innerHTML = `
+    <img src="${flickrUrl(p, 'q')}" loading="lazy" alt=""
+         onerror="this.classList.add('broken'); this.src='data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 1 1%22><rect width=%221%22 height=%221%22 fill=%22%23222%22/></svg>'">
+  `;
+  t.onclick = () => openLB(flickrUrl(p, 'b'));
+  return t;
+}
+
+function renderGrid(photos) {
+  const wrap = document.getElementById('grid-scroll');
+  wrap.innerHTML = '';
+  // Re-create the floating-date pill since we just blew away the contents.
+  const pill = document.createElement('div');
+  pill.className = 'scroll-date'; pill.id = 'scroll-date';
+  wrap.appendChild(pill);
+
+  if (!photos || !photos.length) {
+    wrap.innerHTML = '<div class="loading-state">no photos</div>';
+    return;
+  }
+  let currentKey = null;
+  let currentRow = null;
+  photos.forEach(p => {
+    const mk = monthKey(p.date);
+    if (mk.key !== currentKey) {
+      currentKey = mk.key;
+      const group = document.createElement('div');
+      group.className = 'event-group';
+      group.innerHTML = `<div class="event-label">${mk.label}</div>`;
+      currentRow = document.createElement('div');
+      currentRow.className = 'photo-row';
+      group.appendChild(currentRow);
+      wrap.appendChild(group);
+    }
+    currentRow.appendChild(makeThumb(p));
+  });
+  setupScrollDate();
+}
+
+let scrollDateHideTimer = null;
+function setupScrollDate() {
+  const scroller = document.getElementById('grid-scroll');
+  const pill = document.getElementById('scroll-date');
+  if (!scroller || !pill) return;
+  function update() {
+    const labels = scroller.querySelectorAll('.event-label');
+    const topOffset = scroller.scrollTop;
+    let active = null;
+    labels.forEach(lbl => {
+      if (lbl.offsetTop <= topOffset + 12) active = lbl;
+    });
+    if (active) {
+      pill.textContent = active.textContent.trim();
+      pill.classList.add('show');
+      clearTimeout(scrollDateHideTimer);
+      scrollDateHideTimer = setTimeout(() => pill.classList.remove('show'), 900);
+    }
+  }
+  scroller.onscroll = update;
+}
+
+function clearHighlights() {
+  document.querySelectorAll('.thumb.lit').forEach(t => t.classList.remove('lit'));
+}
+
+function highlightAndScroll(pids) {
+  clearHighlights();
+  if (!pids || !pids.length) return;
+  let first = null;
+  pids.forEach(pid => {
+    document.querySelectorAll('.thumb[data-pid="' + pid + '"]').forEach(el => {
+      el.classList.remove('lit');
+      void el.offsetWidth;
+      el.classList.add('lit');
+      if (!first) first = el;
+    });
+  });
+  if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// ─────────────────────────────────────────────────────────────────
+// QUIZ
+// ─────────────────────────────────────────────────────────────────
+function seedFor(str) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+function rng(seed) {
+  let s = seed || 1;
+  return () => { s = Math.imul(s ^ (s >>> 15), 0x2545F491); return ((s ^= s >>> 13) >>> 0) / 4294967296; };
+}
+function shuffledOrder(qSig) {
+  const r = rng(seedFor(qSig));
+  const keys = ['a', 'b', 'c'];
+  for (let i = keys.length - 1; i > 0; i--) {
+    const j = Math.floor(r() * (i + 1));
+    [keys[i], keys[j]] = [keys[j], keys[i]];
+  }
+  return keys;
+}
+
+function renderQuiz(stub, { qa, photos }) {
+  const wrap = document.getElementById('quiz-scroll');
+  wrap.innerHTML = '';
+
+  const episodic = qa.episodic_qa || [];
+  total = episodic.length;
+  updateScore();
+
+  const intro = document.createElement('div');
+  intro.className = 'quiz-intro';
+  intro.innerHTML = `
+    <div class="quiz-greeting">
+      Hi! You're seeing <span class="user-name">${escapeHtml(stub.name)}</span>'s camera roll.
+      <br>Can you answer these <strong>${total}</strong> questions for them?
+    </div>
+    <div class="quiz-hint">
+      Pick A, B, or C for each question. The relevant photo will light up on the left ↖ after you answer.
+    </div>`;
+  wrap.appendChild(intro);
+
+  episodic.forEach((q, i) => {
+    wrap.appendChild(buildQCard({
+      q, photos, kind: 'episodic', idx: i + 1, sigPrefix: `${stub.id}|epi`,
+    }));
+  });
+
+  const banner = document.createElement('div');
+  banner.className = 'score-banner';
+  banner.id = 'score-banner';
+  banner.style.display = 'none';
+  wrap.appendChild(banner);
+}
+
+function buildQCard({ q, photos, kind, idx, sigPrefix }) {
+  const card = document.createElement('div');
+  card.className = 'q-card';
+
+  const sig = `${sigPrefix}|${idx}|${q.question}`;
+  const order = shuffledOrder(sig);
+
+  const head = document.createElement('div');
+  head.className = 'q-head';
+  head.innerHTML = `
+    <div class="q-num">Q${idx}</div>
+    <div class="q-text">${escapeHtml(q.question)}</div>`;
+  card.appendChild(head);
+
+  const choices = document.createElement('div');
+  choices.className = 'q-choices';
+
+  const letters = ['A', 'B', 'C'];
+  const btns = [];
+  order.forEach((key, displayIdx) => {
+    const btn = document.createElement('button');
+    btn.className = 'q-choice';
+    btn.type = 'button';
+    btn.dataset.key = key;
+    btn.innerHTML = `
+      <span class="letter">${letters[displayIdx]}</span>
+      <span class="label">${escapeHtml(q.answer[key])}</span>
+      <span class="mark"></span>`;
+    btn.onclick = () => onAnswer(card, btns, btn, key, q, photos, kind);
+    choices.appendChild(btn);
+    btns.push(btn);
+  });
+  card.appendChild(choices);
+
+  // Resolved photo ids on the left grid — used to light them up after answering
+  if (kind === 'episodic') {
+    const refs = (q.image_ref || []).map(r => r.replace(/\.jpg$/i, ''));
+    const resolvable = refs.filter(pid => photos[pid]);
+    card._pids = resolvable;
+
+    const note = document.createElement('div');
+    note.className = 'q-evidence-note';
+    if (resolvable.length) {
+      note.innerHTML = `
+        <span class="dot"></span>
+        <span>highlighted on the left ↖</span>
+        <button type="button">show again</button>`;
+      note.querySelector('button').onclick = () => highlightAndScroll(resolvable);
+    } else {
+      note.classList.add('q-evidence-missing');
+      note.textContent = '(referenced photos are no longer hosted)';
+    }
+    card.appendChild(note);
+  }
+
+  return card;
+}
+
+function onAnswer(card, btns, chosenBtn, chosenKey, q, photos, kind) {
+  if (card.classList.contains('answered')) return;
+  card.classList.add('answered');
+  const isCorrect = chosenKey === 'a';   // dataset convention: 'a' is always correct
+  card.classList.add(isCorrect ? 'correct' : 'wrong');
+
+  btns.forEach(b => {
+    b.disabled = true;
+    const k = b.dataset.key;
+    if (k === 'a') b.classList.add('correct');
+    if (b === chosenBtn && !isCorrect) b.classList.add('wrong');
+    if (k !== 'a' && b !== chosenBtn)  b.classList.add('dimmed');
+    const mark = b.querySelector('.mark');
+    if (k === 'a') mark.textContent = '✓';
+    else if (b === chosenBtn) mark.textContent = '✗';
+  });
+
+  if (kind === 'episodic') {
+    const note = card.querySelector('.q-evidence-note');
+    if (note) note.classList.add('show');
+    if (card._pids && card._pids.length) {
+      highlightAndScroll(card._pids);
+    }
+  }
+
+  answered += 1;
+  if (isCorrect) correct += 1;
+  updateScore();
+
+  if (answered === total) {
+    showFinalScore();
+  }
+}
+
+function updateScore() {
+  const c = document.getElementById('score-correct');
+  const t = document.getElementById('score-total');
+  if (c) c.textContent = String(correct);
+  if (t) t.textContent = String(total);
+}
+
+function showFinalScore() {
+  const b = document.getElementById('score-banner');
+  if (!b) return;
+  const pct = total ? Math.round(100 * correct / total) : 0;
+  let msg;
+  if (pct >= 80)      msg = "Wow — you know this person basically as well as the data does.";
+  else if (pct >= 60) msg = "Solid! Well above chance.";
+  else if (pct >= 40) msg = "Around chance — these are genuinely hard for a stranger.";
+  else                msg = "Roughly chance level — these are tough without knowing the person.";
+  b.innerHTML = `
+    <div class="score-banner-num"><strong>${correct}</strong> / ${total} <span style="color:var(--text-soft);font-size:1.1rem;">· ${pct}%</span></div>
+    <div class="score-banner-msg">${msg}</div>`;
+  b.style.display = 'block';
+  b.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+// ─────────────────────────────────────────────────────────────────
+// LIGHTBOX
+// ─────────────────────────────────────────────────────────────────
+function openLB(url) {
+  document.getElementById('lb-img').src = url;
+  document.getElementById('lb').classList.add('open');
+}
+function closeLB() { document.getElementById('lb').classList.remove('open'); }
+document.getElementById('lb').addEventListener('click', e => {
+  if (e.target === document.getElementById('lb')) closeLB();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLB(); });
+
+// ─────────────────────────────────────────────────────────────────
+// Utils
+// ─────────────────────────────────────────────────────────────────
+function escapeHtml(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+boot();
+</script>
+</body>
+</html>

@@ -82,7 +82,7 @@ body{
   transition:background 0.18s, color 0.18s;
 }
 
-/* ── LIMITLESS BOARD — Miro-style off-white surface covered in
+/* ── LIMITLESS BOARD — soft off-white surface covered in
    scattered sticky notes. The board is ALWAYS light (regardless of
    the page theme) because a dark sticky-note board looks like a
    crime-scene corkboard, not a brainstorm. The visitor can grab
@@ -98,7 +98,8 @@ body{
   z-index:5;
   overflow:hidden;   /* board panning, no scrollbars */
   cursor:grab;
-  /* Always-light Miro-style board surface. */
+  /* Always-light board surface in light mode (dark mode overrides
+     this further down). */
   background:#f6f5f1;
 }
 .thread.panning{ cursor:grabbing; }
@@ -391,14 +392,14 @@ body{
   align-items:stretch;
   text-align:center;
   padding:18px 16px;
-  /* Clean flat colour — exactly the Figma paper hex, no overlay
-     gradients (those tinted the saturated FigJam colours muddy).
-     FigJam stickies are flat squares, not paper-texture cards. */
+  /* Clean flat colour — no overlay gradients (those tinted the
+     saturated paper colours muddy). Sticky notes are flat squares,
+     not paper-texture cards. */
   background:var(--paper, #FFE299);
   color:#1f1d18;
   border:none;
   border-radius:4px;
-  /* One soft drop shadow — same vibe as real FigJam stickies. */
+  /* One soft drop shadow — like a real sticky pinned to a board. */
   box-shadow:
     0 1px 2px rgba(34,30,20,0.08),
     0 4px 10px rgba(34,30,20,0.10);
@@ -419,7 +420,7 @@ body{
 }
 
 /* NAME TAG — written in marker handwriting on the board, NOT a
-   speech-bubble (we don't want to look like Miro). Each name has:
+   speech-bubble pill. Each name has:
      • A handwritten "Caveat" font with a slight per-note rotation
        so it feels like the visitor scribbled it on the spot.
      • A hand-drawn squiggle UNDERLINE (or overline, depending on
@@ -494,9 +495,9 @@ body{
 }
 
 /* Memo body — the question text (and, when the asker attached
-   reference photos, a small row of thumbs above it). Centred,
-   Miro-style. The visitor reads the question at a glance; clicking
-   opens the full chat in the modal. */
+   reference photos, a small row of thumbs above it). Centred so
+   the visitor reads the question at a glance; clicking opens the
+   full chat in the modal. */
 .example-memo .memo-body{
   width:100%;
   display:flex;
@@ -812,10 +813,10 @@ body{
 }
 
 /* ── VISITOR STICKY NOTE — for "you" turns ─────────────────────
-   The visitor's own questions land as their OWN Miro-style sticky
-   notes on the same board. Same shape + tag style as example
-   memos, just with a distinctive "you" colour palette + a small
-   YOU tag instead of a fake name. */
+   The visitor's own questions land as their OWN sticky notes on
+   the same board. Same shape + name style as example memos, just
+   with a distinctive "you" colour + the word "you" instead of a
+   fake name. */
 .you-note{
   position:absolute;
   width:200px;
@@ -849,29 +850,40 @@ body{
     0 18px 32px rgba(0,0,0,0.20),
     0 4px 10px rgba(0,0,0,0.12);
 }
-/* YOU name-tag — same speech-bubble shape as example memos, fixed
-   bottom-left, with a "you" accent colour so visitor notes stand out. */
+/* YOU name — handwritten in marker, with the same scribble underline
+   + sparkle treatment as example notes, but inked in the visitor's
+   green accent colour so YOU notes still stand apart from others. */
 .you-note .yn-tag{
   position:absolute;
-  left:-6px; bottom:-22px;
-  font-size:11px; font-weight:700;
-  color:#0e1206;
-  background:#c8f060;
-  border:1.5px solid #0e1206;
-  border-radius:999px;
-  padding:4px 11px;
-  letter-spacing:0.05em;
-  text-transform:uppercase;
+  left:6px; bottom:-28px;
+  font-family:'Caveat', 'Marker Felt', cursive;
+  font-size:24px;
+  font-weight:700;
+  line-height:1;
+  letter-spacing:0;
+  color:#2a6310;
+  background:transparent;
+  border:none;
+  padding:3px 6px;
+  text-transform:lowercase;
+  transform:rotate(-5deg);
+  transform-origin:left center;
   z-index:5;
   pointer-events:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 8' preserveAspectRatio='none'><path d='M2 5 Q 15 1 30 4 T 60 4 T 90 4 T 118 4' stroke='%232a6310' stroke-width='1.8' fill='none' stroke-linecap='round'/></svg>");
+  background-repeat:no-repeat;
+  background-position:center bottom 0px;
+  background-size:100% 6px;
 }
-.you-note .yn-tag::after{
+.you-note .yn-tag::before{
   content:'';
-  position:absolute;
-  top:-10px; left:14px;
-  width:0; height:0;
-  border:6px solid transparent;
-  border-bottom-color:#0e1206;
+  display:inline-block;
+  vertical-align:middle;
+  width:13px; height:13px;
+  margin-right:4px;
+  position:relative;
+  top:-2px;
+  background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><path d='M10 1 L11.5 8.5 L19 10 L11.5 11.5 L10 19 L8.5 11.5 L1 10 L8.5 8.5 Z' fill='%232a6310'/></svg>") center / contain no-repeat;
 }
 .you-note .yn-text{
   font-size:14px; line-height:1.36;
@@ -907,12 +919,15 @@ body{
   animation:yn-spin 0.7s linear infinite;
 }
 .you-note.saved .yn-spin{ display:none; }
+/* After save the name reads as confirmed — slightly darker ink + a
+   check sparkle on the front instead of the four-point star. */
 .you-note.saved .yn-tag{
-  background:#2a6310;
-  color:#ffffff;
-  border-color:#2a6310;
+  color:#1c4209;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 8' preserveAspectRatio='none'><path d='M2 5 Q 15 1 30 4 T 60 4 T 90 4 T 118 4' stroke='%231c4209' stroke-width='2' fill='none' stroke-linecap='round'/></svg>");
 }
-.you-note.saved .yn-tag::after{ border-bottom-color:#2a6310; }
+.you-note.saved .yn-tag::before{
+  background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><path d='M4 10 L8 14 L16 6' stroke='%231c4209' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>") center / contain no-repeat;
+}
 @keyframes yn-spin{ to { transform:rotate(360deg); } }
 .you-note.just-pinned{
   animation:memo-pin-in 0.42s cubic-bezier(0.22, 0.9, 0.3, 1);
@@ -931,7 +946,7 @@ body{
 }
 
 /* ── DARK MODE OVERRIDES FOR THE BOARD ─────────────────────────
-   Sticky notes stay in their FigJam pastel colours (those are the
+   Sticky notes stay in their bright pastel colours (those are the
    "ink" of the board and should pop in both themes), but the board
    surface, dotted grid, central prompt, hand-scribble names, and
    little affordance pills all flip to a dark palette so the page
@@ -1002,12 +1017,28 @@ body{
   border-color:#15140f;
 }
 /* Visitor "you" notes use the green accent — make sure the pin
-   shadow reads on the dark board. */
+   shadow reads on the dark board, and brighten the handwritten
+   "you" so the green ink doesn't disappear against the dark
+   surface (the note itself is still its bright pastel green). */
 :root[data-theme="dark"] .you-note{
   box-shadow:
     0 1px 1px rgba(0,0,0,0.25),
     0 10px 24px rgba(0,0,0,0.45),
     0 2px 6px rgba(0,0,0,0.25);
+}
+:root[data-theme="dark"] .you-note .yn-tag{
+  color:#c8f060;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 8' preserveAspectRatio='none'><path d='M2 5 Q 15 1 30 4 T 60 4 T 90 4 T 118 4' stroke='%23c8f060' stroke-width='1.8' fill='none' stroke-linecap='round'/></svg>");
+}
+:root[data-theme="dark"] .you-note .yn-tag::before{
+  background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><path d='M10 1 L11.5 8.5 L19 10 L11.5 11.5 L10 19 L8.5 11.5 L1 10 L8.5 8.5 Z' fill='%23c8f060'/></svg>") center / contain no-repeat;
+}
+:root[data-theme="dark"] .you-note.saved .yn-tag{
+  color:#e0ff90;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 8' preserveAspectRatio='none'><path d='M2 5 Q 15 1 30 4 T 60 4 T 90 4 T 118 4' stroke='%23e0ff90' stroke-width='2' fill='none' stroke-linecap='round'/></svg>");
+}
+:root[data-theme="dark"] .you-note.saved .yn-tag::before{
+  background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'><path d='M4 10 L8 14 L16 6' stroke='%23e0ff90' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>") center / contain no-repeat;
 }
 /* Make the sticky-note shadow a touch heavier on dark so the notes
    look like they're floating above the board instead of glued flat. */
@@ -1799,6 +1830,32 @@ body{
 .contrib-progress.done .pdot{ background:var(--accent); }
 .contrib-progress b{ color:var(--text); font-weight:600; }
 
+/* Privacy reassurance — sits next to the progress pill, tells the
+   visitor up-front that the chatbar is just a thought capture: no
+   account, no camera-roll grant, no upload of personal photos. */
+.privacy-note{
+  align-self:center;
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:10.5px; letter-spacing:0.01em;
+  color:var(--text-dim);
+  background:var(--bg-elev);
+  border:1px dashed var(--border-strong);
+  padding:4px 12px; border-radius:30px;
+  backdrop-filter:blur(8px);
+  width:auto; max-width:100%;
+  line-height:1.35;
+  box-sizing:border-box;
+}
+.privacy-note .pn-ico{
+  font-size:11px;
+  line-height:1;
+  flex:none;
+}
+.privacy-note b{ color:var(--text-soft); font-weight:600; }
+@media (max-width: 720px){
+  .privacy-note{ font-size:10px; }
+}
+
 /* the chat input row */
 .chatbar{
   display:flex; align-items:flex-end; gap:8px;
@@ -2187,6 +2244,11 @@ body.drag-over .chatbar{
   <div class="contrib-progress" id="contrib-progress">
     <span class="pdot"></span>
     <span id="progress-text">Please contribute <b>0&nbsp;/&nbsp;5</b> questions</span>
+  </div>
+  <!-- Privacy reassurance — anonymous, no camera-roll access yet. -->
+  <div class="privacy-note">
+    <span class="pn-ico">🔒</span>
+    <span><b>Anonymous!</b> Just type your questions and drag / attach reference images. We do <b>not</b> need access to your camera roll.</span>
   </div>
   <!-- Strip of thumbs for images the visitor has attached but not yet sent.
        Hidden until at least one image is selected. -->
@@ -2945,11 +3007,10 @@ async function streamText(el, text, opts){
 // click → opens that example in a full-size modal overlay.
 // ─────────────────────────────────────────────────────────────
 
-// Figma sticky-note palette — the standard set Figma uses for FigJam
-// stickies. Each entry is { paper, tag } where the tag colour is a
-// lighter wash of the same hue so the speaker name-pill blends with
-// its note while staying readable. White + grey are intentionally
-// excluded (they wash out on the light board background).
+// Sticky-note palette. Each entry is { paper, tag } where the tag
+// colour is a lighter wash of the same hue (used for the modal
+// theming when a note is clicked). White + grey are intentionally
+// excluded — they wash out on the light board background.
 const PAPER_COLORS = [
   { paper:'#FFE299', tag:'#FFF1CC' },    // yellow
   { paper:'#FFD3A8', tag:'#FFE9D4' },    // orange
@@ -3008,8 +3069,8 @@ function pickRandomBoardPosition(width, height, opts){
   // Outer radius — notes stay within this distance so the whole
   // cluster reads as ONE board.
   const outer = opts.outerRadius || 760;
-  // Stretch the ring horizontally so the cluster reads wide (matches
-  // typical viewport aspect ratios, like the Miro reference).
+  // Stretch the ring horizontally so the cluster reads wide, matching
+  // typical viewport aspect ratios.
   const sx = opts.stretchX || 1.45;
   const sy = opts.stretchY || 1.0;
 
@@ -3216,8 +3277,9 @@ function getCentralPromptRect(){
 }
 
 // Build a single note cluster: a fanned PHOTO STACK on one side, a
-// Miro-style STICKY NOTE on the other side, and a soft curved LINE
-// connecting them. The whole cluster is one click target.
+// STICKY NOTE on the other side, and a soft curved LINE connecting
+// them. Each part has its own click target (stack → camera roll,
+// note → chat).
 function buildMemo(node, i){
   const { task, yfcc } = node;
 
@@ -4506,7 +4568,7 @@ function addContribBubble(text, photos){
   const note = document.createElement('div');
   note.className = 'you-note pending just-pinned';
 
-  // Question text — centred Miro-sticky-note style.
+  // Question text — centred sticky-note style.
   const txt = document.createElement('div');
   txt.className = 'yn-text';
   txt.textContent = text;
@@ -4538,7 +4600,8 @@ function addContribBubble(text, photos){
   status.appendChild(stxt);
   note.appendChild(status);
 
-  // YOU name tag — speech bubble in the bottom-left corner.
+  // YOU name — written in marker, bottom-left, with the same
+  // scribble underline + sparkle as example notes.
   const tag = document.createElement('div');
   tag.className = 'yn-tag';
   tag.textContent = 'YOU';
@@ -4996,70 +5059,6 @@ async function ensureYfccManifest(){
   return YFCC_USERS;
 }
 
-// Lightweight CSV parser — same approach as the dataviewer (handles
-// the simple, well-quoted release format). Returns photos sorted
-// newest-first.
-function parsePhotosCsv(text){
-  const lines = text.split(/\r?\n/);
-  if (!lines.length) return { nsid: null, photos: [] };
-  const header = parseCsvLine(lines[0]);
-  const idx = name => header.indexOf(name);
-  const cols = {
-    photoid:   idx('photoid'),
-    uid:       idx('uid'),
-    farmid:    idx('farmid'),
-    serverid:  idx('serverid'),
-    secret:    idx('secret'),
-    pageurl:   idx('pageurl'),
-    title:     idx('title'),
-    datetaken: idx('datetaken'),
-  };
-  const photos = [];
-  let nsid = null;
-  for (let i = 1; i < lines.length; i++) {
-    if (!lines[i]) continue;
-    const r = parseCsvLine(lines[i]);
-    const pid = r[cols.photoid];
-    if (!pid) continue;
-    if (nsid === null) nsid = r[cols.uid] || null;
-    photos.push({
-      id:     pid,
-      farm:   r[cols.farmid],
-      server: r[cols.serverid],
-      secret: r[cols.secret],
-      page:   r[cols.pageurl],
-      title:  r[cols.title],
-      date:   r[cols.datetaken],
-    });
-  }
-  photos.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-  return { nsid, photos };
-}
-function parseCsvLine(line){
-  const out = [];
-  let cur = '', inQ = false;
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
-    if (inQ) {
-      if (c === '"' && line[i + 1] === '"') { cur += '"'; i++; }
-      else if (c === '"') { inQ = false; }
-      else { cur += c; }
-    } else {
-      if (c === ',') { out.push(cur); cur = ''; }
-      else if (c === '"') { inQ = true; }
-      else { cur += c; }
-    }
-  }
-  out.push(cur);
-  return out;
-}
-
-function flickrThumbUrl(p, size){
-  size = size || 'q';
-  if (!p) return '';
-  return `https://farm${p.farm}.staticflickr.com/${p.server}/${p.id}_${p.secret}_${size}.jpg`;
-}
-
 const CRM_MONTHS = ['January','February','March','April','May','June',
                     'July','August','September','October','November','December'];
 function crmMonthKey(isoDate){
@@ -5107,10 +5106,20 @@ async function openCameraRoll(yu){
   try {
     let payload = YFCC_PHOTO_CACHE[yu.id];
     if (!payload) {
-      const csvRes = await fetch(`data/release/${yu.id}/photos.csv`, { cache: 'no-cache' });
-      if (!csvRes.ok) throw new Error('photos.csv HTTP ' + csvRes.status);
-      const csv = await csvRes.text();
-      payload = parsePhotosCsv(csv);
+      // Per-user JSON ships with the page (~6 MB total for all users)
+      // and already has full Flickr CDN URLs in p.thumb / p.src — no
+      // need for the 1.9 GB photos.csv dataset (which is gitignored
+      // and only lives on HuggingFace). Prefer yu.dataFile if the
+      // manifest provides it, otherwise fall back to the conventional
+      // path "yfcc_users/<id>.json".
+      const url = yu.dataFile || `yfcc_users/${yu.id}.json`;
+      const res = await fetch(url, { cache: 'no-cache' });
+      if (!res.ok) throw new Error('photos JSON HTTP ' + res.status);
+      const json = await res.json();
+      const photos = ((json && json.photos) || []).slice();
+      // Newest first for a natural scroll-back-in-time feel.
+      photos.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+      payload = { photos };
       YFCC_PHOTO_CACHE[yu.id] = payload;
     }
 
@@ -5181,10 +5190,11 @@ function crmRenderGrid(photos){
     }
     const t = document.createElement('div');
     t.className = 'crm-thumb';
-    t.title = p.title || '';
+    t.title = p.caption || p.title || '';
     const img = document.createElement('img');
     img.loading = 'lazy';
-    img.src = flickrThumbUrl(p, 'q');
+    // The per-user JSON ships full thumb URLs ready-to-use.
+    img.src = p.thumb || '';
     img.alt = '';
     img.onerror = () => {
       img.classList.add('broken');
@@ -5215,7 +5225,8 @@ function openCameraRollLB(photo){
   const lb  = document.getElementById('crm-lb');
   const img = document.getElementById('crm-lb-img');
   if (!lb || !img) return;
-  img.src = flickrThumbUrl(photo, 'b');  // larger Flickr size
+  // Per-user JSON stores the larger size as p.src; fall back to thumb.
+  img.src = photo.src || photo.thumb || '';
   lb.classList.add('open');
 }
 function closeCameraRollLB(){
