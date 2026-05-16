@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>camroll · dataviewer</title>
+<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='%23FFE299'/><text x='32' y='44' font-family='Caveat,cursive' font-size='40' text-anchor='middle' fill='%231a1812'>cr</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Caveat:wght@500;600;700&display=swap" rel="stylesheet">
 <script>
   // Set theme before paint to avoid flash. Default LIGHT — sticky-
@@ -17,7 +18,7 @@
 </script>
 <style>
 /* ── THEME TOKENS — warm sticky-board palette, shared with the rest
-   of the camroll family (index.html, demo, questions_collection). */
+   of the camroll family (index.html, demo, questions). */
 :root,
 :root[data-theme="dark"] {
   --bg:            #15140f;       /* warm near-black */
@@ -163,12 +164,18 @@ body {
 :root[data-theme="dark"] .theme-toggle .icon-dark { display: inline; }
 :root[data-theme="light"] .theme-toggle .icon-light { display: inline; }
 
+/* Shared dotted-grid backdrop for all .screen panels — keeps the
+   sticky-board feel consistent across the picker AND the per-user
+   quiz view (matches index.html / questions). */
+.screen {
+  background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-color: var(--bg);
+}
+
 /* ── PICKER ──────────────────────────────────────────────── */
 #picker {
   padding: 2.5rem 2rem 2rem; overflow-y: auto; position: relative;
-  /* Subtle dotted-grid backdrop, same as the sticky board / index. */
-  background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
-  background-size: 24px 24px;
 }
 .picker-inner { width: 100%; max-width: 1100px; margin: 0 auto; }
 .picker-eyebrow {
@@ -295,7 +302,6 @@ body {
 #quiz {
   flex-direction: row;
   padding: 1.5rem;
-  background: var(--bg);
   justify-content: center;
   align-items: stretch;
 }
@@ -313,7 +319,7 @@ body {
   .quiz-frame { border-radius: 6px; }
 }
 
-/* ── LEFT: photo panel (mirrors camroll_demo.html .photo-panel) ── */
+/* ── LEFT: photo panel (mirrors demo.html .photo-panel) ── */
 .photo-panel {
   width: 58%; display: flex; flex-direction: column;
   border-right: 1px solid var(--border); overflow: hidden;
@@ -589,10 +595,10 @@ body {
   <span class="title"><strong>camroll</strong></span>
   <span class="sub">dataviewer · human-evaluation quiz over real camera rolls</span>
   <nav>
-    <a href="index.html">Paper</a>
-    <a href="camroll_demo.html">Demo</a>
-    <a href="camroll_questions_collection.html">Questions</a>
-    <a href="camroll_dataviewer.html" class="active">Data</a>
+    <a href="../index.html">Paper</a>
+    <a href="demo.html">Demo</a>
+    <a href="questions.html">Questions</a>
+    <a href="dataviewer.html" class="active">Data</a>
   </nav>
   <button class="theme-toggle" title="Toggle theme" onclick="toggleTheme()">
     <span class="icon-dark">☀</span><span class="icon-light">☾</span>
@@ -608,7 +614,7 @@ body {
       Pick a YFCC100M user, then try to answer 40 multiple-choice questions about
       <em>specific moments</em> in their camera roll — the relevant photo lights up after
       each answer. It's the human-evaluation companion to the
-      <a href="camroll_demo.html">live agent demo</a>.
+      <a href="demo.html">live agent demo</a>.
     </div>
     <div class="users-grid" id="users-grid"></div>
     <div class="show-more-wrap" id="show-more-wrap" style="display:none;">
@@ -700,9 +706,14 @@ const MONTHS = ['January','February','March','April','May','June',
 // ─────────────────────────────────────────────────────────────────
 // Boot
 // ─────────────────────────────────────────────────────────────────
+// All data files (yfcc_users.json, per-user JSONs/CSVs, avatars) live
+// at the repo root — this HTML lives in project_page/, so prefix every
+// relative data path with this base.
+const DATA_BASE = '../';
+
 async function boot() {
   try {
-    const res = await fetch('yfcc_users.json', { cache: 'no-cache' });
+    const res = await fetch(DATA_BASE + 'yfcc_users.json', { cache: 'no-cache' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     MANIFEST = await res.json();
   } catch (e) {
@@ -721,7 +732,7 @@ function renderFooter() {
     `${MANIFEST.users.length} users · 40 questions each · ` +
     `<a href="https://multimediacommons.wordpress.com/yfcc100m-core-dataset/" target="_blank" rel="noopener">YFCC100M</a> · ` +
     `<a href="https://github.com/thaoshibe/camroll" target="_blank" rel="noopener">source on github</a><br>` +
-    `<a class="cross-link" href="camroll_demo.html">← watch the live agent demo instead</a>`;
+    `<a class="cross-link" href="demo.html">← watch the live agent demo instead</a>`;
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -741,8 +752,8 @@ async function probe(uid) {
   }
 }
 
-function qaPath(uid)  { return `data/release/${uid}/qa.json`; }
-function csvPath(uid) { return `data/release/${uid}/photos.csv`; }
+function qaPath(uid)  { return `${DATA_BASE}data/release/${uid}/qa.json`; }
+function csvPath(uid) { return `${DATA_BASE}data/release/${uid}/photos.csv`; }
 
 function makeUserCard(u, reveal) {
   const card = document.createElement('div');
@@ -758,7 +769,7 @@ function makeUserCard(u, reveal) {
       ).join('')}
     </div>
     <div class="card-info">
-      <div class="card-avatar"><img src="${u.avatar}" loading="lazy" alt=""></div>
+      <div class="card-avatar"><img src="${DATA_BASE + u.avatar}" loading="lazy" alt=""></div>
       <div>
         <div class="card-name">${escapeHtml(u.name)}</div>
         <div class="card-meta">${u.years} · ${u.photoCount.toLocaleString()} photos</div>
@@ -819,7 +830,7 @@ async function openUser(stub) {
   document.getElementById('u-name').textContent = stub.name;
   document.getElementById('u-meta').textContent =
     `${stub.years} · ${stub.photoCount.toLocaleString()} photos`;
-  document.getElementById('u-avatar').src = stub.avatar;
+  document.getElementById('u-avatar').src = DATA_BASE + stub.avatar;
   document.getElementById('grid-scroll').innerHTML =
     '<div class="loading-state">loading photos…</div>' +
     '<div class="scroll-date" id="scroll-date"></div>';

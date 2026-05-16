@@ -8,7 +8,11 @@ relevant photos highlighted on the left.
 
 ```
 camroll/
-├── camroll_demo.html       ← the demo page (open this in a browser)
+├── index.html              ← project landing page (open this first)
+├── project_page/
+│   ├── demo.html           ← interactive agent demo
+│   ├── questions.html      ← brainstorm board for visitor questions
+│   └── dataviewer.html     ← dataset quiz / browser
 ├── yfcc_users.json         ← lightweight manifest used by the picker
 ├── yfcc_users/
 │   ├── u1.json … u14.json  ← full per-user data (photos + events + agent traces)
@@ -26,7 +30,8 @@ nothing is committed to the repo.
 ```bash
 cd camroll
 python3 -m http.server 8765
-# → http://localhost:8765/camroll_demo.html
+# → http://localhost:8765/                          (project landing)
+# → http://localhost:8765/project_page/demo.html    (agent demo)
 ```
 
 ## Deploy to GitHub Pages
@@ -34,11 +39,11 @@ python3 -m http.server 8765
 1. Put this `camroll/` folder at the root of your `thaoshibe.github.io`
    repo, commit, push.
 2. Pages will serve it at
-   `https://thaoshibe.github.io/camroll/camroll_demo.html`.
+   `https://thaoshibe.github.io/camroll/` (landing page) and the demos
+   at `https://thaoshibe.github.io/camroll/project_page/demo.html`.
 
 If you instead push this folder to a dedicated repo named `camroll` (in
-your `thaoshibe` account), it would live at
-`https://thaoshibe.github.io/camroll/camroll_demo.html` as well, since
+your `thaoshibe` account), it would live at the same path layout, since
 GitHub Pages mounts project sites at `<user>.github.io/<repo>/`.
 
 ## Data shape

@@ -4,10 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>camroll · question collection</title>
+<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='%23FFE299'/><text x='32' y='44' font-family='Caveat,cursive' font-size='40' text-anchor='middle' fill='%231a1812'>cr</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Caveat:wght@500;600;700&display=swap" rel="stylesheet">
 <script>
   // Set theme before paint to avoid flash-of-wrong-theme.
-  // Shares the same localStorage key as camroll_demo.html so theme
+  // Shares the same localStorage key as demo.html so theme
   // preference carries across pages of the same family.
   (function() {
     var t = null;
@@ -20,7 +21,7 @@
   })();
 </script>
 <style>
-/* ── THEME TOKENS — shared with camroll_demo.html ──────────── */
+/* ── THEME TOKENS — shared with demo.html ──────────────────── */
 :root,
 :root[data-theme="dark"] {
   --bg:            #0f0f0f;
@@ -633,6 +634,26 @@ body{
   color:rgba(26,24,18,0.6);
   font-style:italic;
 }
+.board-prompt .bp-back{
+  margin-top:8px;
+  font-size:11px;
+  letter-spacing:0.02em;
+  color:rgba(26,24,18,0.5);
+}
+.board-prompt .bp-back a{
+  pointer-events:auto;        /* parent disables pointer events; re-enable on the link */
+  position:relative; z-index:3;
+  color:inherit;
+  text-decoration:underline;
+  text-decoration-color:rgba(26,24,18,0.25);
+  text-underline-offset:2px;
+  cursor:pointer;
+  transition:color .15s ease, text-decoration-color .15s ease;
+}
+.board-prompt .bp-back a:hover{
+  color:rgba(26,24,18,0.85);
+  text-decoration-color:rgba(26,24,18,0.6);
+}
 @media (max-width: 720px){
   .board-prompt{ width:320px; }
   .board-prompt .bp-q{ font-size:22px; }
@@ -986,6 +1007,16 @@ body{
 }
 :root[data-theme="dark"] .board-prompt .bp-sub{
   color:rgba(246,242,232,0.6);
+}
+:root[data-theme="dark"] .board-prompt .bp-back{
+  color:rgba(246,242,232,0.5);
+}
+:root[data-theme="dark"] .board-prompt .bp-back a{
+  text-decoration-color:rgba(246,242,232,0.25);
+}
+:root[data-theme="dark"] .board-prompt .bp-back a:hover{
+  color:rgba(246,242,232,0.9);
+  text-decoration-color:rgba(246,242,232,0.6);
 }
 /* Hand-scribbled name on each note — re-ink in cream so it shows up
    against the dark board. Both the text colour AND the inline SVG
@@ -1671,8 +1702,28 @@ body{
   flex:1; min-width:0;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
+.header nav{
+  display:flex; align-items:center; gap:4px;
+  margin-left:auto;
+}
+.header nav a{
+  color:var(--text-soft);
+  text-decoration:none;
+  font-size:12.5px; font-weight:500;
+  padding:6px 11px; border-radius:6px;
+  letter-spacing:0.02em;
+  transition:color 0.15s, background 0.15s;
+}
+.header nav a:hover{
+  color:var(--text); background:var(--bg-elev-2);
+}
+.header nav a.active{
+  color:var(--text); background:var(--bg-elev-2);
+}
 @media (max-width: 720px){
   .header .sub{ display:none; }
+  .header nav{ gap:2px; }
+  .header nav a{ padding:6px 7px; font-size:12px; }
 }
 
 .refresh-btn{
@@ -1690,7 +1741,7 @@ body{
   color:var(--text); background:var(--bg-elev-2);
 }
 
-/* Theme toggle — same compact style as camroll_demo.html */
+/* Theme toggle — same compact style as demo.html */
 .theme-toggle {
   background: none; border: 1px solid var(--border); border-radius: 6px;
   color: var(--text-soft); cursor: pointer;
@@ -2033,7 +2084,7 @@ body.drag-over .chatbar{
 /* ── CAMERA-ROLL MODAL — opens when a visitor clicks a folder chip ──
    It's a centred panel with a header (avatar + name + "X photos"
    + close button) and a scrollable chronological grid of thumbnails,
-   month-grouped, mirroring the look of camroll_dataviewer.html. The
+   month-grouped, mirroring the look of dataviewer.html. The
    actual data comes from a real YFCC user (deterministically picked
    per fictional name) so visitors see what an honest camera roll
    looks like. */
@@ -2192,6 +2243,12 @@ body.drag-over .chatbar{
 <div class="header">
   <span class="title">camroll · <strong>question collection</strong></span>
   <span class="sub">brainstorm board · click any sticky note to read the full chat · drop your own question below ↓</span>
+  <nav>
+    <a href="../index.html">Paper</a>
+    <a href="demo.html">Demo</a>
+    <a href="questions.html" class="active">Questions</a>
+    <a href="dataviewer.html">Data</a>
+  </nav>
   <button class="refresh-btn" onclick="reshuffle()" title="Show 3 different example conversations">↻ shuffle examples</button>
   <button class="theme-toggle" title="Toggle theme" onclick="toggleTheme()">
     <span class="icon-dark">☀</span><span class="icon-light">☾</span>
@@ -2210,6 +2267,7 @@ body.drag-over .chatbar{
       <div class="bp-eyebrow">camroll · question collection</div>
       <div class="bp-q">If an AI assistant could<br>access your <span class="bp-accent">camera roll</span>,<br>what would you ask?</div>
       <div class="bp-sub">drop your question on the board — see what others have asked around it</div>
+      <div class="bp-back"><a href="../index.html">← come back to project page</a></div>
     </div>
     <!-- Example memo notes and visitor "you" notes are injected here
          at random positions by the renderer. -->
@@ -2279,7 +2337,7 @@ body.drag-over .chatbar{
 <script>
 // ─────────────────────────────────────────────────────────────
 // THEME (initial value set in <head> before paint).
-// Same key + behaviour as camroll_demo.html so users get a consistent
+// Same key + behaviour as demo.html so users get a consistent
 // preference across pages of the camroll family.
 // ─────────────────────────────────────────────────────────────
 function toggleTheme() {
@@ -4680,7 +4738,7 @@ function markBubbleSaved(note, imageCount){
 }
 
 // ─────────────────────────────────────────────────────────────
-// SAVE  → log to Google Sheet (same endpoint as camroll_demo.html)
+// SAVE  → log to Google Sheet (same endpoint as demo.html)
 // ─────────────────────────────────────────────────────────────
 const LOG_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwiQLx3kQjNeG5J-7fu5Cpf1za5WZC7fvPKoNmVDFPEOL_kQr3wX7R0Chnz4yXrBTf7/exec';
 const SESSION_ID = (crypto.randomUUID ? crypto.randomUUID()
@@ -5042,7 +5100,7 @@ function toast(msg, isErr){
 // ─────────────────────────────────────────────────────────────
 // CAMERA-ROLL MODAL — clickable folder chip → real chronological
 // photo grid for the YFCC user bound to that turn. Mirrors what
-// camroll_dataviewer.html shows (date headers, dense thumb grid,
+// dataviewer.html shows (date headers, dense thumb grid,
 // click for big preview), but rendered inline as a modal so the
 // visitor never leaves the question-collection page.
 // ─────────────────────────────────────────────────────────────
@@ -5050,9 +5108,14 @@ let YFCC_USERS = null;          // [{id,name,avatar,years,photoCount,preview,…
 const YFCC_PHOTO_CACHE = {};    // uid → {nsid, photos:[{id,farm,server,secret,date,page,title}, …]}
 let CRM_LAST_FOCUS = null;      // restore focus on close
 
+// All data files (yfcc_users.json, per-user JSONs, avatars) live at
+// the repo root — this HTML lives in project_page/, so prefix every
+// relative data path with this base.
+const DATA_BASE = '../';
+
 async function ensureYfccManifest(){
   if (YFCC_USERS) return YFCC_USERS;
-  const res = await fetch('yfcc_users.json', { cache: 'no-cache' });
+  const res = await fetch(DATA_BASE + 'yfcc_users.json', { cache: 'no-cache' });
   if (!res.ok) throw new Error('yfcc_users.json HTTP ' + res.status);
   const json = await res.json();
   YFCC_USERS = (json && json.users) || [];
@@ -5113,7 +5176,7 @@ async function openCameraRoll(yu){
       // manifest provides it, otherwise fall back to the conventional
       // path "yfcc_users/<id>.json".
       const url = yu.dataFile || `yfcc_users/${yu.id}.json`;
-      const res = await fetch(url, { cache: 'no-cache' });
+      const res = await fetch(DATA_BASE + url, { cache: 'no-cache' });
       if (!res.ok) throw new Error('photos JSON HTTP ' + res.status);
       const json = await res.json();
       const photos = ((json && json.photos) || []).slice();

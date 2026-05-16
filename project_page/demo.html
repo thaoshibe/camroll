@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>camroll · demo</title>
+<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='%23FFE299'/><text x='32' y='44' font-family='Caveat,cursive' font-size='40' text-anchor='middle' fill='%231a1812'>cr</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Caveat:wght@500;600;700&display=swap" rel="stylesheet">
 <script>
   // Set theme before paint to avoid flash. Default LIGHT — this is a
@@ -18,7 +19,7 @@
 </script>
 <style>
 /* ── THEME TOKENS — warm sticky-board palette, shared with the rest
-   of the camroll family (index.html, questions_collection, …). ─── */
+   of the camroll family (index.html, questions, …). ───────── */
 :root,
 :root[data-theme="dark"] {
   --bg:            #15140f;       /* warm near-black */
@@ -93,7 +94,7 @@ body {
   transition: background 0.18s, color 0.18s;
 }
 
-/* ── SHARED HEADER BAR — matches index.html + questions_collection
+/* ── SHARED HEADER BAR — matches index.html + questions
    so all camroll pages share the same chrome. Sticky to the top,
    54px tall; the screen content below offsets by header height. */
 .site-header {
@@ -158,13 +159,19 @@ body {
 :root[data-theme="dark"] .theme-toggle .icon-dark { display: inline; }
 :root[data-theme="light"] .theme-toggle .icon-light { display: inline; }
 
+/* Shared dotted-grid backdrop for all .screen panels — keeps the
+   sticky-board feel consistent across the picker AND the per-user
+   demo view (matches index.html / questions). */
+.screen {
+  background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-color: var(--bg);
+}
+
 /* ── PICKER ── */
 #picker {
   align-items: stretch;
   padding: 2.5rem 2rem 2rem; overflow-y: auto; position: relative;
-  /* Subtle dotted-grid backdrop, same as the sticky board / index. */
-  background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
-  background-size: 24px 24px;
 }
 .picker-inner { width: 100%; max-width: 1100px; margin: 0 auto; text-align: left; }
 .picker-eyebrow {
@@ -179,7 +186,7 @@ body {
 }
 .picker-title strong { font-weight: 600; }
 /* Marker-highlighter accent — same hand-streaked yellow used across
-   the family (index.html, questions_collection). */
+   the family (index.html, questions). */
 .picker-title .hl {
   background:
     linear-gradient(180deg,
@@ -281,7 +288,6 @@ body {
   flex-direction: row;
   padding: 1.5rem;
   gap: 0;
-  background: var(--bg);
   justify-content: center;
   align-items: stretch;
 }
@@ -670,10 +676,10 @@ body {
   <span class="title"><strong>camroll</strong></span>
   <span class="sub">interactive demo · pick a real user, browse their photos, ask questions</span>
   <nav>
-    <a href="index.html">Paper</a>
-    <a href="camroll_demo.html" class="active">Demo</a>
-    <a href="camroll_questions_collection.html">Questions</a>
-    <a href="camroll_dataviewer.html">Data</a>
+    <a href="../index.html">Paper</a>
+    <a href="demo.html" class="active">Demo</a>
+    <a href="questions.html">Questions</a>
+    <a href="dataviewer.html">Data</a>
   </nav>
   <button class="theme-toggle" title="Toggle theme" onclick="toggleTheme()">
     <span class="icon-dark">☀</span><span class="icon-light">☾</span>
@@ -787,9 +793,14 @@ const MONTHS = ['January','February','March','April','May','June',
 // ─────────────────────────────────────────────────────────────────
 // Boot
 // ─────────────────────────────────────────────────────────────────
+// All data files (yfcc_users.json, per-user JSONs, avatars) live at
+// the repo root — this HTML lives in project_page/, so prefix every
+// relative data path with this base.
+const DATA_BASE = '../';
+
 async function boot() {
   try {
-    const res = await fetch('yfcc_users.json', { cache: 'no-cache' });
+    const res = await fetch(DATA_BASE + 'yfcc_users.json', { cache: 'no-cache' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     MANIFEST = await res.json();
   } catch (e) {
@@ -829,7 +840,7 @@ function makeUserCard(u, reveal) {
       ).join('')}
     </div>
     <div class="card-info">
-      <div class="card-avatar"><img src="${u.avatar}" loading="lazy" alt=""></div>
+      <div class="card-avatar"><img src="${DATA_BASE + u.avatar}" loading="lazy" alt=""></div>
       <div>
         <div class="card-name">${u.name}</div>
         <div class="card-meta">${u.years} · ${u.photoCount.toLocaleString()} photos</div>
@@ -878,7 +889,7 @@ async function openUser(stub) {
   // Header (we know name/avatar from manifest, photo data loads after)
   document.getElementById('u-name').textContent = stub.name;
   document.getElementById('u-meta').textContent = stub.years + ' · ' + stub.photoCount.toLocaleString() + ' photos';
-  document.getElementById('u-avatar').src = stub.avatar;
+  document.getElementById('u-avatar').src = DATA_BASE + stub.avatar;
 
   document.getElementById('grid-scroll').innerHTML =
     '<div class="loading-state">loading photos…</div>';
@@ -891,7 +902,7 @@ async function openUser(stub) {
   let u = userCache[stub.id];
   if (!u) {
     try {
-      const res = await fetch(stub.dataFile, { cache: 'no-cache' });
+      const res = await fetch(DATA_BASE + stub.dataFile, { cache: 'no-cache' });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       u = await res.json();
       userCache[stub.id] = u;
