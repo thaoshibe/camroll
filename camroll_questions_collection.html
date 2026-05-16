@@ -12,7 +12,10 @@
   (function() {
     var t = null;
     try { t = localStorage.getItem('camroll-theme'); } catch (e) {}
-    if (!t) t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+    // The board is a sticky-note canvas — feels much more natural in
+    // light by default. Only flip to dark when the visitor's OS
+    // explicitly prefers dark AND they haven't picked a theme yet.
+    if (!t) t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
     document.documentElement.setAttribute('data-theme', t);
   })();
 </script>
