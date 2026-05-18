@@ -2,56 +2,73 @@
   <img src="assets/banner.svg" alt="camroll — Personal Camera Roll Visual Question Answering" width="100%">
 </p>
 
-# camroll
+<p align="center">
+  <a href="https://arxiv.org/abs/XXXX.XXXXX"><img src="https://img.shields.io/badge/arXiv-paper-b31b1b.svg?logo=arxiv&logoColor=white" alt="arXiv"></a>
+  <a href="https://thaoshibe.github.io/camroll/"><img src="https://img.shields.io/badge/Project-Page-2a6310.svg?logo=github&logoColor=white" alt="Project Page"></a>
+  <a href="https://huggingface.co/datasets/thaoshibe/camroll-yfcc20"><img src="https://img.shields.io/badge/%F0%9F%A4%97_Dataset-camroll--yfcc20-ffd21e.svg" alt="Dataset"></a>
+  <a href="https://huggingface.co/spaces/thaoshibe/camroll-agent"><img src="https://img.shields.io/badge/%F0%9F%A4%97_Demo-Spaces-ffd21e.svg" alt="Demo"></a>
+</p>
 
-An **agentic search engine over a personal photo library**. Given a JSON of
-your photos (paths + dates + chat/metadata), `camroll`:
-
-1. **Captions** every photo with a vision model and **groups** them into
-   coherent events (a trip, a hangout, a class activity, …).
-2. **Indexes** captions and events into a SQLite + FTS5 keyword store and a
-   vector store for semantic search.
-3. **Answers** natural-language questions about your library with a ReAct
-   agent that has 5 atomic search tools.
-
-This repo also includes a static demo website (`page/`, `index.html`,
-`yfcc_users/`) hosted on GitHub Pages — it lets you browse 14 YFCC100M
-users' photo rolls with pre-recorded agent traces, no install required.
-Everything below is about the Python package in `camroll-agent/`.
+> **TL;DR:** `camroll-agent` is an **AI agent** that does VQA on a personal camera roll.
+> 1. index your camera roll into a hierarchical queryable memory (events << captions << images).
+> 2. the agent answers questions over that memory using 5 atomic tools: `search`, `grep`, `list_by_date`, `get`, and `view_image`.
 
 ---
 
 ## Install
 
-Pick whichever VLM/LLM backend you want, and add `[embeddings]` for the
-default local sentence-transformers embedding model:
+<table>
+<tr>
+<th width="50%">🌐 Use API <sup>(OpenAI, Gemini)</sup></th>
+<th width="50%">💻 Local <sup>(GPU required)</sup></th>
+</tr>
+<tr>
+<td valign="top">
 
 ```bash
-pip install camroll-agent[openai,embeddings]      # OpenAI + local embeddings
-pip install camroll-agent[gemini,embeddings]      # Gemini + local embeddings
-pip install camroll-agent[anthropic,embeddings]   # Claude + local embeddings
-pip install camroll-agent[local,embeddings]       # local HF VLM (needs GPU) + embeddings
-pip install camroll-agent[all]                     # everything except [local]
+git clone https://github.com/thaoshibe/camroll
+cd camroll/camroll-agent
+
+conda create -n camroll python=3.10 -y
+conda activate camroll
+
+pip install -r requirements.txt
+pip install -e .
 ```
+
+OpenAI + Gemini APIs. No torch (~50 MB install).
+
+</td>
+<td valign="top">
+
+```bash
+git clone https://github.com/thaoshibe/camroll
+cd camroll/camroll-agent
+
+conda create -n camroll-local python=3.10 -y
+conda activate camroll-local
+
+pip install -r requirements_local.txt
+pip install -e .
+```
+
+Adds Qwen-VL / Kimi-VL + `sentence-transformers`. Needs CUDA (~3 GB install).
+
+</td>
+</tr>
+</table>
 
 Set the API key for whichever cloud backend you use:
 
 ```bash
-export OPENAI_API_KEY=sk-…
-export GEMINI_API_KEY=…
-export ANTHROPIC_API_KEY=sk-ant-…
+export OPENAI_API_KEY=sk-…       # for OpenAI VLM/LLM + embeddings (default)
+export GEMINI_API_KEY=…           # for Gemini VLM/LLM
 ```
 
-If you'd rather use **OpenAI embeddings** (faster, no torch download), you
-can skip `[embeddings]` and pass `--embedding-model text-embedding-3-small`
-at index time. You'll get a clear ImportError otherwise:
-
-```
-ImportError: sentence-transformers is required for the default embedding
-model 'sentence-transformers/all-MiniLM-L6-v2'. Install it with:
-    pip install camroll-agent[embeddings]
-or pick a different embedding model (e.g. --embedding-model text-embedding-3-small to use OpenAI).
-```
+The default embedding model is **OpenAI's `text-embedding-3-small`** (fast,
+no local install). If you'd rather use a local sentence-transformers model
+(free, offline), install `requirements_local.txt` and pass
+`--embedding-model sentence-transformers/all-MiniLM-L6-v2` at index time.
 
 ## Quickstart
 
@@ -141,7 +158,7 @@ The agent reasons over 5 deliberately small, single-purpose tools:
 
 | Tool | What it does | Cost |
 |---|---|---|
-| `search_memory(query, …)` | Semantic (vector) search over events + captions | cheap |
+| `search(query, …)` | Semantic (vector) search over events + captions | cheap |
 | `grep(query, …)` | Literal BM25 keyword search via SQLite FTS5 | cheap |
 | `list_by_date(date_from, date_to, …)` | Pure metadata filter | cheap |
 | `get(id)` | Fetch the full event or image record by id | cheap |
@@ -215,7 +232,6 @@ camroll-agent/
 │       ├── base.py
 │       ├── openai_client.py
 │       ├── gemini_client.py
-│       ├── anthropic_client.py
 │       └── local_client.py
 └── examples/
     ├── sample_conversation.json

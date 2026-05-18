@@ -1,0 +1,18 @@
+# Default install — cloud APIs (OpenAI + Google Gemini).
+# Embeddings use OpenAI's text-embedding-3-small, so no torch / sentence-transformers needed.
+#
+# Usage:
+#     pip install -r requirements.txt
+#     pip install -e .
+
+numpy>=1.23
+Pillow>=10.0
+requests>=2.28
+tqdm>=4.65
+
+# VLM + LLM backends
+openai>=1.30
+google-genai>=0.5
+
+# Vector index acceleration
+faiss-gpu>=1.7

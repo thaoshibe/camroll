@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "camroll-agent"
+version = "0.1.0"
+description = "Agentic search over a personal photo library: VLM captioning, event grouping, and a ReAct agent with atomic search tools."
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Thao Nguyen" }]
+keywords = ["agent", "react", "photo-library", "vlm", "rag", "memory"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Science/Research",
+]
+# Cloud-API setup (default). Local Qwen-VL / Kimi-VL backend needs the
+# extra deps in requirements_local.txt.
+dependencies = [
+    "numpy>=1.23",
+    "Pillow>=10.0",
+    "requests>=2.28",
+    "tqdm>=4.65",
+    "openai>=1.30",
+    "google-genai>=0.5",
+    "faiss-gpu>=1.7",
+]
+
+[project.optional-dependencies]
+# Local VLM via HuggingFace (Qwen-VL, Kimi-VL). Needs a GPU.
+# Equivalent to: pip install -r requirements_local.txt
+local = [
+    "torch>=2.0",
+    "transformers>=4.51",
+    "accelerate>=0.30",
+    "qwen-vl-utils>=0.0.10",
+    "sentence-transformers>=2.7",
+]
+
+dev = ["pytest>=7", "ruff>=0.4"]
+
+[project.scripts]
+camroll-agent = "camroll_agent.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/thaoshibe/camroll"
+
+[tool.setuptools.packages.find]
+include = ["camroll_agent*"]

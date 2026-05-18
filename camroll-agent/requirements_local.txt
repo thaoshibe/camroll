@@ -1,0 +1,20 @@
+# Local-inference install — same as requirements.txt PLUS the HuggingFace
+# stack for running Qwen-VL / Kimi-VL on a local GPU, and
+# sentence-transformers for local-embedding fallback.
+#
+# This pulls torch (~2 GB) — only install if you have a CUDA GPU.
+#
+# Usage:
+#     pip install -r requirements_local.txt
+#     pip install -e .
+
+-r requirements.txt
+
+# Local VLM
+torch>=2.0
+transformers>=4.51
+accelerate>=0.30
+qwen-vl-utils>=0.0.10
+
+# Local embeddings (sentence-transformers/all-MiniLM-L6-v2)
+sentence-transformers>=2.7

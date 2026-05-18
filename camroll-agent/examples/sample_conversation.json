@@ -1,0 +1,14 @@
+{
+  "_comment": "Small ready-to-run example: 6 real photos from 2 events. Uses real paths on this filesystem. For a public release, swap in your own paths or images.",
+  "profile_image": "/sensei-fs-3/tenants/Sensei-AdobeResearchTeam/thaon/code/thaodata/yfcc_v3/3/images/847410131.jpg",
+  "library_description": "A small example album with two outdoor events: an autumn day at the lake (2005) and a summer at the lake (2006).",
+  "lookback_k": 3,
+  "turns": [
+    {"date": "2005-10-01", "user": {"image": "/sensei-fs-3/tenants/Sensei-AdobeResearchTeam/thaon/code/thaodata/yfcc_v3/3/images/847410131.jpg"}},
+    {"date": "2005-10-01", "user": {"image": "/sensei-fs-3/tenants/Sensei-AdobeResearchTeam/thaon/code/thaodata/yfcc_v3/3/images/847410831.jpg"}},
+    {"date": "2005-10-01", "user": {"image": "/sensei-fs-3/tenants/Sensei-AdobeResearchTeam/thaon/code/thaodata/yfcc_v3/3/images/847411727.jpg"}},
+    {"date": "2006-07-01", "user": {"image": "/sensei-fs-3/tenants/Sensei-AdobeResearchTeam/thaon/code/thaodata/yfcc_v3/3/images/847332913.jpg"}},
+    {"date": "2006-07-01", "user": {"image": "/sensei-fs-3/tenants/Sensei-AdobeResearchTeam/thaon/code/thaodata/yfcc_v3/3/images/847333117.jpg"}},
+    {"date": "2006-07-04", "user": {"image": "/sensei-fs-3/tenants/Sensei-AdobeResearchTeam/thaon/code/thaodata/yfcc_v3/3/images/847340189.jpg"}}
+  ]
+}
