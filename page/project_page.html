@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>camroll · Personal Camera Roll Visual Question Answering</title>
+<meta name="description" content="Personal Camera Roll Visual Question Answering — the camroll dataset (50 users, 31,476 images, 2,500 QA pairs) and camroll-agent, a conversational AI agent with hierarchical memory for long-horizon personalized visual content.">
+<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='%23FFE299'/><text x='32' y='44' font-family='Caveat,cursive' font-size='40' text-anchor='middle' fill='%231a1812'>cr</text></svg>">
+
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Caveat:wght@500;600;700&display=swap" rel="stylesheet">
+
+<script>
+  // Set theme before paint to avoid flash. Shared key with other
+  // camroll pages so a visitor's preference carries across the site.
+  (function() {
+    var t = null;
+    try { t = localStorage.getItem('camroll-theme'); } catch (e) {}
+    // Default to light — this is a sticky-board-themed paper page,
+    // light reads way better.
+    if (!t) t = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', t);
+  })();
+</script>
+
+<style>
+/* ── THEME TOKENS — shared with the rest of the camroll family ── */
+:root,
+:root[data-theme="dark"] {
+  --bg:            #15140f;        /* warm near-black to match the board */
+  --bg-elev:       #1f1d18;
+  --bg-elev-2:     #25221c;
+  --bg-elev-3:     #2c2922;
+  --border:        rgba(255,255,255,0.10);
+  --border-strong: rgba(255,255,255,0.22);
+  --text:          #f6f2e8;
+  --text-mid:      #e1dccd;
+  --text-soft:     #b8b2a3;
+  --text-dim:      #918a7d;
+  --text-faint:    #6b6557;
+  --text-ghost:    #4a463c;
+  --accent:        #c8f060;
+  --accent-text:   #c8f060;
+  --accent-soft:   rgba(200,240,96,0.16);
+  --accent-tint:   rgba(200,240,96,0.06);
+  --shadow:        rgba(0,0,0,0.45);
+  --board-bg:      #15140f;
+  --grid-dot:      rgba(255,255,255,0.10);
+  --header-bg:     rgba(21,20,15,0.82);
+  --ink:           #f6f2e8;        /* hand-drawn marker colour */
+  --rule:          rgba(255,255,255,0.12);
+}
+:root[data-theme="light"] {
+  --bg:            #f6f5f1;
+  --bg-elev:       #ffffff;
+  --bg-elev-2:     #f0eee7;
+  --bg-elev-3:     #e8e5dc;
+  --border:        rgba(0,0,0,0.10);
+  --border-strong: rgba(0,0,0,0.28);
+  --text:          #1a1812;
+  --text-mid:      #2a2620;
+  --text-soft:     #4a443a;
+  --text-dim:      #6a6258;
+  --text-faint:    #8a8278;
+  --text-ghost:    #b5ad9f;
+  --accent:        #2a6310;
+  --accent-text:   #2a6310;
+  --accent-soft:   rgba(42,99,16,0.18);
+  --accent-tint:   rgba(42,99,16,0.07);
+  --shadow:        rgba(0,0,0,0.10);
+  --board-bg:      #f6f5f1;
+  --grid-dot:      rgba(0,0,0,0.13);
+  --header-bg:     rgba(246,245,241,0.85);
+  --ink:           #1a1812;
+  --rule:          rgba(0,0,0,0.10);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:'DM Sans', sans-serif;
+  font-size:16px;
+  color:var(--text);
+  background:var(--board-bg);
+  line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+  transition:background 0.18s, color 0.18s;
+}
+/* Subtle dotted-grid background, like the sticky board. Fixed to
+   the viewport so it doesn't slide as the visitor scrolls. */
+body::before{
+  content:'';
+  position:fixed; inset:0;
+  z-index:0;
+  pointer-events:none;
+  background-image:radial-gradient(var(--grid-dot) 1px, transparent 1px);
+  background-size:24px 24px;
+  opacity:0.6;
+}
+main, header { position:relative; z-index:1; }
+
+/* ── HEADER ─────────────────────────────────────────────────── */
+.header{
+  position:sticky; top:0; left:0; right:0;
+  height:54px; z-index:50;
+  display:flex; align-items:center;
+  padding:0 22px;
+  gap:14px;
+  background:var(--header-bg);
+  border-bottom:1px solid var(--border);
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
+}
+.header .title{
+  font-size:14px; font-weight:500; color:var(--text);
+  letter-spacing:0.02em;
+  white-space:nowrap;
+}
+.header .title strong{ color:var(--accent-text); font-weight:600; }
+.header .sub{
+  font-size:12.5px; color:var(--text-dim);
+  flex:1; min-width:0;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.header nav{
+  display:flex; align-items:center; gap:4px;
+  margin-left:auto;
+}
+.header nav a{
+  color:var(--text-soft);
+  text-decoration:none;
+  font-size:12.5px; font-weight:500;
+  padding:6px 11px;
+  border-radius:6px;
+  letter-spacing:0.02em;
+  transition:color 0.15s, background 0.15s;
+}
+.header nav a:hover{
+  color:var(--text);
+  background:var(--bg-elev-2);
+}
+.theme-toggle {
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-soft);
+  padding: 5px 9px;
+  border-radius: 6px;
+  font-family: inherit;
+  cursor: pointer;
+  font-size: 13px;
+  margin-left:6px;
+  transition: all .15s;
+  display:flex; align-items:center; justify-content:center;
+  width:30px; height:30px;
+}
+.theme-toggle:hover { color: var(--text); border-color: var(--border-strong); }
+.theme-toggle .icon-dark, .theme-toggle .icon-light { display: none; }
+:root[data-theme="dark"]  .theme-toggle .icon-dark  { display: inline; }
+:root[data-theme="light"] .theme-toggle .icon-light { display: inline; }
+@media (max-width: 720px){
+  .header .sub{ display:none; }
+  .header nav{ gap:2px; }
+  .header nav a{ padding:6px 7px; font-size:12px; }
+}
+
+/* ── PAGE LAYOUT ─────────────────────────────────────────────── */
+main{
+  max-width:980px;
+  margin:0 auto;
+  padding:60px 28px 120px;
+}
+section{ margin-bottom:64px; }
+
+/* ── HERO ───────────────────────────────────────────────────── */
+.hero{
+  text-align:center;
+  padding:24px 0 32px;
+}
+.hero .eyebrow{
+  display:inline-block;
+  font-size:11.5px; letter-spacing:0.16em; text-transform:uppercase;
+  color:var(--text-faint);
+  font-weight:700;
+  margin-bottom:18px;
+}
+.hero h1{
+  font-size:46px;
+  line-height:1.12;
+  font-weight:600;
+  letter-spacing:-0.015em;
+  color:var(--text);
+  margin-bottom:18px;
+}
+.hero h1 .hl{
+  /* Highlighter accent — same hand-streaked marker yellow as the
+     question-collection page so the family reads as one. */
+  background:
+    linear-gradient(180deg,
+      rgba(255,232,0,0.10) 0%,
+      rgba(255,232,0,0.95) 18%,
+      rgba(255,232,0,0.95) 78%,
+      rgba(255,232,0,0.10) 100%),
+    #fff05a;
+  color:#1a1812;
+  padding:0 10px;
+  border-radius:3px;
+  -webkit-box-decoration-break:clone;
+  box-decoration-break:clone;
+}
+.hero h1 .scribble{
+  font-family:'Caveat', cursive;
+  font-weight:700;
+  font-size:1.08em;
+  color:var(--accent-text);
+  display:inline-block;
+  transform:rotate(-2deg);
+}
+.hero .tagline{
+  font-family:'Caveat', cursive;
+  font-size:26px;
+  font-weight:600;
+  color:var(--text-soft);
+  margin-bottom:14px;
+  transform:rotate(-1deg);
+  display:inline-block;
+}
+.hero .authors{
+  font-size:15.5px;
+  color:var(--text-soft);
+  margin-bottom:6px;
+}
+.hero .authors a{
+  color:var(--text);
+  text-decoration:none;
+  border-bottom:1px dotted var(--border-strong);
+  padding-bottom:1px;
+}
+.hero .authors a:hover{ color:var(--accent-text); border-bottom-color:var(--accent); }
+/* Affiliation list under the byline — each numbered affiliation on
+   its own line so the mapping is unambiguous, like a real CV paper. */
+.hero .affils{
+  font-size:13.5px;
+  color:var(--text-dim);
+  font-style:italic;
+  margin:0 auto 6px;
+  max-width:640px;
+  line-height:1.7;
+}
+.hero .affils .aff{
+  display:inline-block;
+  margin:0 8px;
+  white-space:nowrap;
+}
+.hero .affils .aff sup{
+  color:var(--accent-text);
+  font-style:normal;
+  font-weight:700;
+  margin-right:2px;
+}
+/* Tiny "* equal contribution" line under the affiliations. */
+.hero .cofirst-note{
+  font-size:12px;
+  color:var(--text-faint);
+  margin-bottom:8px;
+}
+.hero .cofirst-note sup{ color:var(--accent-text); font-weight:700; }
+/* Superscripts inside the author byline — numeric for affiliation,
+   asterisk for co-first contribution. */
+.hero .authors sup{
+  color:var(--accent-text);
+  font-weight:700;
+  margin-left:1px;
+  font-size:0.62em;
+  top:-0.55em;
+}
+.hero .venue{
+  font-size:13px;
+  color:var(--text-faint);
+  letter-spacing:0.04em;
+}
+@media (max-width: 720px){
+  .hero h1{ font-size:32px; }
+  .hero .tagline{ font-size:20px; }
+}
+
+/* ── QUICK LINK CARDS — sticky-style tiles linking out to all
+   the project surfaces. Mirrors the sticky-note aesthetic of the
+   question-collection board so the family looks unified. ─────── */
+.links{
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(220px, 1fr));
+  gap:18px;
+  margin-top:30px;
+}
+.link-card{
+  position:relative;
+  display:flex; flex-direction:column;
+  gap:8px;
+  padding:18px 18px 16px;
+  background:var(--paper, #FFE299);
+  color:#1a1812;
+  border-radius:6px;
+  text-decoration:none;
+  box-shadow:
+    0 1px 2px rgba(34,30,20,0.08),
+    0 6px 14px rgba(34,30,20,0.10);
+  transition:transform 0.22s cubic-bezier(0.22, 0.9, 0.3, 1),
+             box-shadow 0.22s;
+  transform:rotate(var(--tilt, 0deg));
+  min-height:140px;
+  overflow:visible;
+}
+.link-card:hover{
+  transform:rotate(0deg) translateY(-3px) scale(1.02);
+  box-shadow:
+    0 2px 4px rgba(34,30,20,0.10),
+    0 14px 28px rgba(34,30,20,0.16);
+  z-index:5;
+}
+.link-card .lc-ico{
+  font-size:22px;
+  line-height:1;
+}
+.link-card .lc-label{
+  font-family:'Caveat', cursive;
+  font-size:13px;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+  font-weight:700;
+  color:rgba(26,24,18,0.6);
+}
+.link-card .lc-title{
+  font-size:18px;
+  font-weight:600;
+  letter-spacing:-0.005em;
+  color:#1a1812;
+  line-height:1.25;
+}
+.link-card .lc-desc{
+  font-size:13px;
+  color:rgba(26,24,18,0.72);
+  line-height:1.45;
+  margin-top:auto;
+}
+.link-card .lc-arrow{
+  position:absolute;
+  right:14px; bottom:12px;
+  font-family:'Caveat', cursive;
+  font-size:24px;
+  color:rgba(26,24,18,0.55);
+  transition:transform 0.22s, color 0.22s;
+}
+.link-card:hover .lc-arrow{
+  transform:translateX(4px) rotate(-8deg);
+  color:#1a1812;
+}
+/* Colour rotation — each card gets a different sticky pastel from
+   the same palette as the question-collection board. */
+.link-card.c-yellow { --paper:#FFE299; --tilt:-1.3deg; }
+.link-card.c-pink   { --paper:#FFA8DB; --tilt: 0.8deg; }
+.link-card.c-blue   { --paper:#A8DAFF; --tilt:-0.6deg; }
+.link-card.c-green  { --paper:#B3EFBD; --tilt: 1.2deg; }
+.link-card.c-violet { --paper:#D3BDFF; --tilt:-1.0deg; }
+.link-card.c-orange { --paper:#FFD3A8; --tilt: 0.6deg; }
+.link-card.c-teal   { --paper:#B3F4EF; --tilt:-0.7deg; }
+.link-card.c-red    { --paper:#FFB8A8; --tilt: 1.0deg; }
+.link-card .lc-badge{
+  position:absolute;
+  top:-10px; right:14px;
+  background:#1a1812;
+  color:#fff5e0;
+  font-size:10px; font-weight:700;
+  padding:3px 9px;
+  border-radius:999px;
+  letter-spacing:0.06em;
+  text-transform:uppercase;
+}
+
+/* ── SECTION HEADINGS ───────────────────────────────────────── */
+h2.section-h{
+  font-family:'Caveat', cursive;
+  font-size:36px;
+  font-weight:700;
+  color:var(--text);
+  margin-bottom:14px;
+  letter-spacing:0;
+  display:inline-block;
+  position:relative;
+}
+h2.section-h::after{
+  content:'';
+  display:block;
+  height:7px;
+  margin-top:-4px;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 8' preserveAspectRatio='none'><path d='M2 5 Q 15 1 30 4 T 60 4 T 90 4 T 118 4' stroke='%231a1812' stroke-width='2' fill='none' stroke-linecap='round'/></svg>");
+  background-repeat:no-repeat;
+  background-size:100% 6px;
+}
+:root[data-theme="dark"] h2.section-h::after{
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 8' preserveAspectRatio='none'><path d='M2 5 Q 15 1 30 4 T 60 4 T 90 4 T 118 4' stroke='%23f6f2e8' stroke-width='2' fill='none' stroke-linecap='round'/></svg>");
+}
+
+/* Body copy inside sections. */
+.prose{
+  max-width:760px;
+  font-size:16px;
+  color:var(--text-mid);
+}
+.prose p{ margin-bottom:14px; }
+.prose strong{ color:var(--text); font-weight:600; }
+.prose a{ color:var(--accent-text); text-decoration:none; border-bottom:1px dotted var(--accent-soft); }
+.prose a:hover{ border-bottom-style:solid; border-bottom-color:var(--accent); }
+
+/* ── TEASER FIGURE ──────────────────────────────────────────── */
+.teaser{
+  margin:24px 0 32px;
+  background:var(--bg-elev);
+  border:1px solid var(--border);
+  border-radius:14px;
+  overflow:hidden;
+  box-shadow:0 8px 24px var(--shadow);
+}
+.teaser .teaser-img{
+  width:100%;
+  aspect-ratio:16/9;
+  background:
+    repeating-linear-gradient(45deg,
+      rgba(0,0,0,0.04) 0 12px,
+      transparent 12px 24px),
+    linear-gradient(135deg, var(--bg-elev-2), var(--bg-elev-3));
+  display:flex; align-items:center; justify-content:center;
+  color:var(--text-faint);
+  font-family:'Caveat', cursive;
+  font-size:22px;
+  text-align:center;
+  padding:24px;
+}
+.teaser .teaser-cap{
+  padding:14px 18px;
+  font-size:13px;
+  color:var(--text-dim);
+  border-top:1px solid var(--border);
+  background:var(--bg-elev-2);
+}
+.teaser .teaser-cap b{ color:var(--text-soft); font-weight:600; }
+
+/* ── BIBTEX BLOCK ───────────────────────────────────────────── */
+.bibtex-wrap{
+  position:relative;
+  background:var(--bg-elev);
+  border:1px solid var(--border);
+  border-radius:12px;
+  overflow:hidden;
+  margin-top:18px;
+}
+.bibtex-wrap pre{
+  font-family:'SF Mono', 'Menlo', 'Consolas', monospace;
+  font-size:13px;
+  color:var(--text-mid);
+  padding:18px 18px 18px 22px;
+  white-space:pre-wrap;
+  word-break:break-word;
+  line-height:1.55;
+  overflow-x:auto;
+}
+.bibtex-wrap .copy-btn{
+  position:absolute;
+  top:10px; right:10px;
+  background:var(--bg-elev-2);
+  border:1px solid var(--border);
+  color:var(--text-soft);
+  font-family:'DM Sans', sans-serif;
+  font-size:12px;
+  padding:5px 11px;
+  border-radius:6px;
+  cursor:pointer;
+  transition:background 0.15s, color 0.15s, border-color 0.15s;
+}
+.bibtex-wrap .copy-btn:hover{
+  background:var(--bg-elev-3);
+  color:var(--text);
+  border-color:var(--border-strong);
+}
+.bibtex-wrap .copy-btn.copied{
+  color:var(--accent-text);
+  border-color:var(--accent-soft);
+}
+
+/* ── INLINE FACTS ROW ───────────────────────────────────────── */
+.facts{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(160px, 1fr));
+  gap:16px;
+  margin:20px 0 0;
+}
+.fact{
+  padding:14px 16px;
+  background:var(--bg-elev);
+  border:1px solid var(--border);
+  border-radius:10px;
+}
+.fact .fk{
+  font-size:11px; letter-spacing:0.10em; text-transform:uppercase;
+  color:var(--text-faint);
+  font-weight:700;
+  margin-bottom:4px;
+}
+.fact .fv{
+  font-size:22px;
+  font-weight:600;
+  color:var(--text);
+  line-height:1.1;
+}
+.fact .fs{
+  font-size:12.5px;
+  color:var(--text-dim);
+  margin-top:3px;
+}
+
+/* ── FOOTER ─────────────────────────────────────────────────── */
+footer{
+  margin-top:48px;
+  padding-top:28px;
+  border-top:1px solid var(--rule);
+  font-size:13px;
+  color:var(--text-dim);
+  display:flex;
+  flex-wrap:wrap;
+  gap:14px 22px;
+  align-items:center;
+  justify-content:space-between;
+}
+footer a{ color:var(--text-soft); text-decoration:none; }
+footer a:hover{ color:var(--accent-text); }
+footer .scribble-mark{
+  font-family:'Caveat', cursive;
+  font-size:22px;
+  color:var(--text);
+  transform:rotate(-3deg);
+  display:inline-block;
+}
+
+</style>
+</head>
+<body>
+
+<header class="header">
+  <span class="title"><strong>camroll</strong></span>
+  <span class="sub">Personal Camera Roll Visual Question Answering · paper, code, dataset, demo</span>
+  <nav>
+    <a href="#abstract">Abstract</a>
+    <a href="#demos">Demos</a>
+    <a href="#data">Data</a>
+    <a href="#cite">Cite</a>
+  </nav>
+  <button class="theme-toggle" title="Toggle theme" onclick="toggleTheme()">
+    <span class="icon-dark">☀︎</span>
+    <span class="icon-light">☾</span>
+  </button>
+</header>
+
+<main>
+
+  <!-- ── HERO ──────────────────────────────────────────────── -->
+  <section class="hero">
+    <div class="eyebrow">research project · 2026</div>
+    <h1>
+      Personal <span class="hl">Camera Roll</span><br>
+      Visual Question Answering
+    </h1>
+    <div class="tagline">if an AI could see your whole camera roll, what would you ask?</div>
+    <div class="authors">
+      <a href="https://thaoshibe.github.io" target="_blank" rel="noopener">Thao Nguyen</a><sup>1,*</sup>
+      ·
+      <a href="https://yuheng-li.github.io/" target="_blank" rel="noopener">Yuheng Li</a><sup>2,*</sup>
+      ·
+      <a href="https://krsingh.cs.ucdavis.edu/" target="_blank" rel="noopener">Krishna Kumar Singh</a><sup>2</sup>
+      ·
+      <a href="https://cs-people.bu.edu/donhk/" target="_blank" rel="noopener">Donghyun Kim</a><sup>3</sup>
+      ·
+      <a href="https://pages.cs.wisc.edu/~yongjaelee/" target="_blank" rel="noopener">Yong Jae Lee</a><sup>1</sup>
+    </div>
+    <div class="affils">
+      <span class="aff"><sup>1</sup>UW&ndash;Madison</span>
+      <span class="aff"><sup>2</sup>Adobe Research</span>
+      <span class="aff"><sup>3</sup>Korea University</span>
+    </div>
+    <div class="cofirst-note"><sup>*</sup> equal contribution</div>
+    <div class="venue">Pre-print · 2026</div>
+  </section>
+
+  <!-- ── QUICK LINKS ───────────────────────────────────────── -->
+  <section id="demos">
+    <h2 class="section-h">explore</h2>
+    <p class="prose" style="margin-top:8px; max-width:640px;">
+      The project lives across a paper, a conversational agent, a benchmark
+      dataset, and three interactive pages — a live question board, an
+      agent demo, and a dataset viewer. Pick where you'd like to start.
+    </p>
+    <div class="links">
+
+      <a class="link-card c-yellow" href="#" target="_blank" rel="noopener">
+        <span class="lc-badge">paper</span>
+        <div class="lc-ico">📄</div>
+        <div class="lc-label">read</div>
+        <div class="lc-title">PDF — full paper</div>
+        <div class="lc-desc">The research write-up with methods, ablations, and judge protocol.</div>
+        <span class="lc-arrow">→</span>
+      </a>
+
+      <a class="link-card c-blue" href="../index.html">
+        <span class="lc-badge">live</span>
+        <div class="lc-ico">📌</div>
+        <div class="lc-label">contribute</div>
+        <div class="lc-title">Question board</div>
+        <div class="lc-desc">A growing wall of real questions people would ask their camera roll. Add yours.</div>
+        <span class="lc-arrow">→</span>
+      </a>
+
+      <a class="link-card c-green" href="demo.html">
+        <div class="lc-ico">▶︎</div>
+        <div class="lc-label">try it</div>
+        <div class="lc-title">Interactive demo</div>
+        <div class="lc-desc">Pick a real user, ask a question, watch the agent retrieve photos and reason.</div>
+        <span class="lc-arrow">→</span>
+      </a>
+
+      <a class="link-card c-pink" href="dataviewer.html">
+        <div class="lc-ico">🗂</div>
+        <div class="lc-label">browse</div>
+        <div class="lc-title">Dataset viewer</div>
+        <div class="lc-desc">All 50 users, 31,476 images, and 2,500 ground-truth Q&amp;A pairs.</div>
+        <span class="lc-arrow">→</span>
+      </a>
+
+      <a class="link-card c-violet" href="https://github.com/thaoshibe/camroll" target="_blank" rel="noopener">
+        <div class="lc-ico">⌨</div>
+        <div class="lc-label">code</div>
+        <div class="lc-title">GitHub</div>
+        <div class="lc-desc">Agent source, evaluation harness, and the data prep pipeline. MIT licensed.</div>
+        <span class="lc-arrow">→</span>
+      </a>
+
+      <a class="link-card c-orange" href="https://huggingface.co/datasets/thaoshibe/camroll" target="_blank" rel="noopener">
+        <div class="lc-ico">🤗</div>
+        <div class="lc-label">dataset</div>
+        <div class="lc-title">HuggingFace</div>
+        <div class="lc-desc">Full camroll release — 50 users, 31,476 images, 2,500 manually-annotated Q&amp;A pairs.</div>
+        <span class="lc-arrow">→</span>
+      </a>
+
+      <a class="link-card c-teal" href="https://huggingface.co/spaces/thaoshibe/camroll-agent" target="_blank" rel="noopener">
+        <div class="lc-ico">🚀</div>
+        <div class="lc-label">space</div>
+        <div class="lc-title">camroll-agent</div>
+        <div class="lc-desc">Hierarchical memory + minimal tools for long-horizon personal visual memory. Runs live on HF Spaces.</div>
+        <span class="lc-arrow">→</span>
+      </a>
+
+      <a class="link-card c-red" href="https://www.youtube.com/" target="_blank" rel="noopener">
+        <div class="lc-ico">🎬</div>
+        <div class="lc-label">watch</div>
+        <div class="lc-title">2-min video</div>
+        <div class="lc-desc">Quick walkthrough of the agent's tool-use loop on a real visitor question.</div>
+        <span class="lc-arrow">→</span>
+      </a>
+
+    </div>
+  </section>
+
+  <!-- ── ABSTRACT ──────────────────────────────────────────── -->
+  <section id="abstract">
+    <h2 class="section-h">abstract</h2>
+    <div class="prose">
+      <p>
+        We study the <strong>personal camera roll visual question answering</strong>
+        setting. In this setting, a conversational AI assistant can access a
+        user's personal camera roll and retrieve relevant photos to answer
+        queries, ranging from simple factual questions
+        (e.g., <em>"Name of the food I tried yesterday?"</em>) to more
+        open-ended ones (e.g., <em>"Recommend some dishes I have never eaten
+        before"</em>).
+      </p>
+      <p>
+        Given the vast nature of the personal camera roll — multiple years,
+        hundreds to thousands of photos — a successful AI assistant needs to
+        understand a long-horizon, highly personalized visual content stream
+        in order to navigate and locate the correct and/or relevant
+        information. To support this, we collect and manually annotate
+        questions that mimic real-world usage. The final dataset,
+        <strong>camroll</strong>, contains <strong>50 users</strong>,
+        <strong>31,476 images</strong>, and <strong>2,500 QA pairs</strong>.
+      </p>
+      <p>
+        We further design <strong>camroll-agent</strong>, a conversational AI
+        agent equipped with hierarchical memory and a minimal set of tools for
+        efficient navigation over large, personalized visual memory.
+        Experimental results show that camroll-agent outperforms numerous
+        baselines and methods for long-context understanding AI agent systems.
+      </p>
+      <p>
+        Together, the camroll dataset and camroll-agent highlight the gap in
+        AI agents' long-context reasoning: <em>personalized visual memory
+        requires different approaches from standard long-context textual
+        memory</em>, especially when consistency, visual details, and
+        user-specific context are present.
+      </p>
+    </div>
+
+    <div class="facts">
+      <div class="fact">
+        <div class="fk">users</div>
+        <div class="fv">50</div>
+        <div class="fs">real personal albums</div>
+      </div>
+      <div class="fact">
+        <div class="fk">images</div>
+        <div class="fv">31,476</div>
+        <div class="fs">long-horizon visual streams</div>
+      </div>
+      <div class="fact">
+        <div class="fk">qa pairs</div>
+        <div class="fv">2,500</div>
+        <div class="fs">manually annotated</div>
+      </div>
+      <div class="fact">
+        <div class="fk">agent</div>
+        <div class="fv">camroll-agent</div>
+        <div class="fs">hierarchical memory + tools</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── TEASER ────────────────────────────────────────────── -->
+  <section id="teaser">
+    <h2 class="section-h">how it works</h2>
+    <div class="teaser">
+      <div class="teaser-img">
+        [ teaser figure — drop a PNG/GIF of the agent retrieving photos here ]
+      </div>
+      <div class="teaser-cap">
+        <b>Figure 1.</b> Given a free-form question, the agent picks among
+        four retrieval tools (caption search, vector search, date filter, event
+        lookup), reads the returned photos, and answers in natural language —
+        with citations back to the source photos.
+      </div>
+    </div>
+  </section>
+
+  <!-- ── DATA ─────────────────────────────────────────────── -->
+  <section id="data">
+    <h2 class="section-h">data &amp; reproducibility</h2>
+    <div class="prose">
+      <p>
+        Everything is open and reproducible:
+      </p>
+      <ul style="margin:0 0 14px 22px;">
+        <li><strong>50 users, 31,476 images, 2,500 QA pairs</strong> —
+            sourced from YFCC100M under each photo's original Creative Commons
+            license and served by Flickr's CDN; nothing is re-uploaded.</li>
+        <li><strong>Manual annotations</strong> — every question/answer pair
+            was hand-written to mimic real-world camera-roll usage, then
+            grounded in the user's actual photos.</li>
+        <li><strong>Agent traces</strong> — every benchmark question ships
+            with the full hierarchical-memory + tool-call trace that produced
+            its answer, so results are step-by-step reproducible.</li>
+        <li><strong>Code</strong> — camroll-agent loop, the four-tool
+            retrieval set, eval harness, and data-prep pipeline all live in
+            <a href="https://github.com/thaoshibe/camroll" target="_blank"
+            rel="noopener">the GitHub repo</a>.</li>
+      </ul>
+      <p>
+        The interactive pages on this site all run client-side — they fetch
+        only the per-user JSON files from this folder; no personal data ever
+        touches a server.
+      </p>
+    </div>
+  </section>
+
+  <!-- ── BIBTEX ───────────────────────────────────────────── -->
+  <section id="cite">
+    <h2 class="section-h">cite</h2>
+    <div class="prose" style="margin-bottom:14px;">
+      If the camroll dataset or camroll-agent helps your work, we'd love a citation:
+    </div>
+    <div class="bibtex-wrap">
+      <button class="copy-btn" type="button" id="copy-bibtex">copy</button>
+<pre id="bibtex">@article{nguyen2026camroll,
+  title   = {Personal Camera Roll Visual Question Answering},
+  author  = {Nguyen, Thao and Li, Yuheng and Singh, Krishna Kumar
+             and Kim, Donghyun and Lee, Yong Jae},
+  journal = {arXiv preprint arXiv:2606.XXXXX},
+  year    = {2026},
+  note    = {Thao Nguyen and Yuheng Li contributed equally.},
+  url     = {https://thaoshibe.github.io/camroll/}
+}</pre>
+    </div>
+  </section>
+
+  <footer>
+    <div>
+      <span class="scribble-mark">camroll</span>
+      &nbsp;·&nbsp; UW–Madison · Adobe Research · Korea University &nbsp;·&nbsp; 2026
+    </div>
+    <div>
+      <a href="https://github.com/thaoshibe/camroll" target="_blank" rel="noopener">code</a>
+      &nbsp;·&nbsp;
+      <a href="https://huggingface.co/datasets/thaoshibe/camroll-yfcc20" target="_blank" rel="noopener">dataset</a>
+      &nbsp;·&nbsp;
+      <a href="mailto:thao@example.com">contact</a>
+    </div>
+  </footer>
+</main>
+
+<script>
+// ── THEME TOGGLE — same key + behaviour as the other camroll pages
+//    so a visitor's preference carries across the site.
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme') || 'light';
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  try { localStorage.setItem('camroll-theme', next); } catch (e) {}
+}
+
+// ── COPY BIBTEX
+document.getElementById('copy-bibtex')?.addEventListener('click', async () => {
+  const text = document.getElementById('bibtex').textContent;
+  const btn  = document.getElementById('copy-bibtex');
+  try {
+    await navigator.clipboard.writeText(text);
+    btn.textContent = 'copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = 'copy';
+      btn.classList.remove('copied');
+    }, 1800);
+  } catch (e) {
+    btn.textContent = 'press ⌘C';
+    setTimeout(() => { btn.textContent = 'copy'; }, 1800);
+  }
+});
+</script>
+
+</body>
+</html>

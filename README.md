@@ -1,131 +1,233 @@
-# camroll demo
+<p align="center">
+  <img src="assets/banner.svg" alt="camroll — Personal Camera Roll Visual Question Answering" width="100%">
+</p>
 
-A static demo of the camroll project — pick a YFCC100M user, browse their
-photo roll, click suggested questions to see real agent traces with the
-relevant photos highlighted on the left.
+# camroll
 
-## What's in this folder
+An **agentic search engine over a personal photo library**. Given a JSON of
+your photos (paths + dates + chat/metadata), `camroll`:
 
-```
-camroll/
-├── index.html              ← project landing page (open this first)
-├── project_page/
-│   ├── demo.html           ← interactive agent demo
-│   ├── questions.html      ← brainstorm board for visitor questions
-│   └── dataviewer.html     ← dataset quiz / browser
-├── yfcc_users.json         ← lightweight manifest used by the picker
-├── yfcc_users/
-│   ├── u1.json … u14.json  ← full per-user data (photos + events + agent traces)
-│   └── u1.jpg  … u14.jpg   ← 200×200 profile photos (~10 KB each)
-└── README.md
-```
+1. **Captions** every photo with a vision model and **groups** them into
+   coherent events (a trip, a hangout, a class activity, …).
+2. **Indexes** captions and events into a SQLite + FTS5 keyword store and a
+   vector store for semantic search.
+3. **Answers** natural-language questions about your library with a ReAct
+   agent that has 5 atomic search tools.
 
-14 YFCC users, ~11,000 photos total. The HTML loads `yfcc_users.json` first
-(small, instant), then lazy-loads `yfcc_users/u{N}.json` (~500 KB – 1 MB)
-only when a user is clicked. Photo bytes themselves are served by Flickr —
-nothing is committed to the repo.
+This repo also includes a static demo website (`page/`, `index.html`,
+`yfcc_users/`) hosted on GitHub Pages — it lets you browse 14 YFCC100M
+users' photo rolls with pre-recorded agent traces, no install required.
+Everything below is about the Python package in `camroll-agent/`.
 
-## Run locally
+---
+
+## Install
+
+Pick whichever VLM/LLM backend you want, and add `[embeddings]` for the
+default local sentence-transformers embedding model:
 
 ```bash
-cd camroll
-python3 -m http.server 8765
-# → http://localhost:8765/                          (project landing)
-# → http://localhost:8765/project_page/demo.html    (agent demo)
+pip install camroll-agent[openai,embeddings]      # OpenAI + local embeddings
+pip install camroll-agent[gemini,embeddings]      # Gemini + local embeddings
+pip install camroll-agent[anthropic,embeddings]   # Claude + local embeddings
+pip install camroll-agent[local,embeddings]       # local HF VLM (needs GPU) + embeddings
+pip install camroll-agent[all]                     # everything except [local]
 ```
 
-## Deploy to GitHub Pages
+Set the API key for whichever cloud backend you use:
 
-1. Put this `camroll/` folder at the root of your `thaoshibe.github.io`
-   repo, commit, push.
-2. Pages will serve it at
-   `https://thaoshibe.github.io/camroll/` (landing page) and the demos
-   at `https://thaoshibe.github.io/camroll/project_page/demo.html`.
+```bash
+export OPENAI_API_KEY=sk-…
+export GEMINI_API_KEY=…
+export ANTHROPIC_API_KEY=sk-ant-…
+```
 
-If you instead push this folder to a dedicated repo named `camroll` (in
-your `thaoshibe` account), it would live at the same path layout, since
-GitHub Pages mounts project sites at `<user>.github.io/<repo>/`.
+If you'd rather use **OpenAI embeddings** (faster, no torch download), you
+can skip `[embeddings]` and pass `--embedding-model text-embedding-3-small`
+at index time. You'll get a clear ImportError otherwise:
 
-## Data shape
+```
+ImportError: sentence-transformers is required for the default embedding
+model 'sentence-transformers/all-MiniLM-L6-v2'. Install it with:
+    pip install camroll-agent[embeddings]
+or pick a different embedding model (e.g. --embedding-model text-embedding-3-small to use OpenAI).
+```
 
-### `yfcc_users.json` (manifest)
+## Quickstart
+
+### 1. Prepare a conversation JSON
 
 ```jsonc
+// my_album.json
 {
-  "users": [
-    {
-      "id": "u1",
-      "name": "alaspoorwho",
-      "years": "2003 – 2013",
-      "photoCount": 827,
-      "eventCount": 92,
-      "avatar":   "yfcc_users/u1.jpg",
-      "preview":  ["https://…_q.jpg", "…", "…", "…"],  // 4 thumbs for picker mosaic
-      "dataFile": "yfcc_users/u1.json"
-    }
+  "root_folder": "/absolute/path/to/photos",
+  "profile_image": "profile.jpg",
+  "library_description": "A 2005-2013 album from a college student.",
+  "turns": [
+    {"date": "2005-10-01", "user": {"image": "847410131.jpg"}},
+    {"date": "2005-10-01", "user": {"image": "847410831.jpg"}},
+    {"date": "2005-10-15", "user": {"image": "851200001.jpg"}}
   ]
 }
 ```
 
-### `yfcc_users/u{N}.json` (per-user)
+Each turn has a `date` and a `user.image` path (absolute or relative to
+`root_folder`). You can include extra fields on the turn — they'll be
+passed to the VLM as additional context.
 
-```jsonc
-{
-  "id": "u1",
-  "name": "alaspoorwho",
-  "nsid": "12028361_N00",
-  "flickrProfile": "https://www.flickr.com/photos/12028361@N00/",
-  "years": "2003 – 2013",
-  "photoCount": 827,
-  "avatar": "yfcc_users/u1.jpg",
-  "events": [                       // kii event groupings (not currently rendered, but available)
-    {"id":"e0","name":"…","date":"2003-11-27","description":"…","photoIds":["…"]}
-  ],
-  "suggestedQs": [
-    {
-      "question":    "What color was the Smart car…?",
-      "qType":       "episodic",
-      "answer":      "Red",
-      "explanation": "Judge's short explanation of why this is correct.",
-      "highlight":   ["348235464"],           // photo ids to outline + scroll-to
-      "latencyS":    6.713,
-      "trace": [
-        {"tool":"search_captions","query":"…","snippet":"<full tool result>","score":0.59},
+### 2. Build the memory (Stage 1 + Stage 2)
+
+```bash
+camroll-agent run my_album.json -o memory/
+```
+
+Or step by step:
+
+```bash
+camroll-agent build my_album.json -o memory/    # VLM captioning + event grouping
+camroll-agent index memory/                     # SQLite + vector store
+```
+
+You can preview what would be processed without calling the VLM:
+
+```bash
+camroll-agent inspect my_album.json
+```
+
+### 3. Ask questions
+
+```bash
+camroll-agent ask "When did I go to Lake Michigan?" --memory memory/
+```
+
+For a streaming trace of thoughts + tool calls:
+
+```bash
+camroll-agent ask "..." --memory memory/ --stream
+```
+
+To let the agent actually look at photos with a VLM (for visual details
+that captions miss):
+
+```bash
+camroll-agent ask "What color was the car at the airport?" \
+    --memory memory/ --enable-view-image
+```
+
+## Python API
+
+```python
+from camroll_agent import build_memory, index, Agent
+
+build_memory.run("my_album.json", output_dir="memory/", backend="openai")
+index.run("memory/")
+
+agent = Agent(memory_dir="memory/", llm_backend="openai")
+result = agent.ask("When did I go to Lake Michigan?")
+print(result.final_text)
+print(result.tool_trace)
+```
+
+Streaming:
+
+```python
+for evt, data in agent.ask_streaming("..."):
+    print(evt, data)
+```
+
+## The 5 atomic tools
+
+The agent reasons over 5 deliberately small, single-purpose tools:
+
+| Tool | What it does | Cost |
+|---|---|---|
+| `search_memory(query, …)` | Semantic (vector) search over events + captions | cheap |
+| `grep(query, …)` | Literal BM25 keyword search via SQLite FTS5 | cheap |
+| `list_by_date(date_from, date_to, …)` | Pure metadata filter | cheap |
+| `get(id)` | Fetch the full event or image record by id | cheap |
+| `view_image(image_ids, prompt)` | Look at the actual photos with a VLM | expensive |
+
+Every tool requires a one-sentence `thought` argument before it can be
+called — this is the ReAct discipline. The agent terminates by emitting
+plain text (no `answer` tool).
+
+## Customizing
+
+### Swap the LLM
+
+Any class that implements `LLMClient.chat(messages, tools)` works:
+
+```python
+from camroll_agent.llm.base import LLMClient
+from camroll_agent import Agent
+
+class MyLLM(LLMClient):
+    def chat(self, messages, tools=None, *, tool_choice="auto"):
+        # return an OpenAI-shaped assistant message dict
         ...
-      ]
-    }
-  ],
-  "photos": [
-    {
-      "id":      "8638574342",
-      "thumb":   "https://farm9.staticflickr.com/8121/8638574342_8d1eabf693_q.jpg",
-      "src":     "https://farm9.staticflickr.com/8121/8638574342_8d1eabf693_b.jpg",
-      "page":    "https://www.flickr.com/photos/12028361@N00/8638574342/",
-      "date":    "2013-04-09T18:26:54",
-      "caption":     "<original Flickr title>",
-      "captionKii":  "<richer kii first-person caption>",
-      "license":     "Attribution-NonCommercial-ShareAlike License",
-      "licenseUrl":  "https://creativecommons.org/licenses/by-nc-sa/2.0/"
-    }
-  ]
-}
+
+agent = Agent(memory_dir="memory/", llm=MyLLM())
 ```
 
-Photos are sorted newest-first (Google Photos style). The demo groups
-consecutive photos from the same month under a "Month YYYY" sticky header.
-Suggested questions are picked from agent eval traces that scored 10/10
-from the LLM judge — so every demo question is one the agent answered
-correctly.
+### Swap the VLM (for Stage 1 captioning and view_image)
 
-## Privacy / data handling
+```python
+from camroll_agent.llm.base import VLMClient
+from camroll_agent import build_memory
 
-- Nothing the visitor types is saved, transmitted, or logged. The chat is
-  fully client-side; free-form questions return a polite "demo-only" message.
-- Photos are served directly by Flickr — each lightbox shows the original
-  Flickr page link and the CC license, satisfying attribution.
+class MyVLM(VLMClient):
+    def generate(self, prompt: str, image_paths: list[str]) -> str:
+        ...
+
+build_memory.run("my_album.json", output_dir="memory/", vlm=MyVLM())
+```
+
+### Swap embeddings
+
+```python
+from camroll_agent import index
+from camroll_agent.vector import EmbeddingClient
+
+class MyEmbed:
+    def embed_many(self, texts: list[str]) -> list[list[float]]:
+        ...
+
+index.run("memory/", embedding_client=MyEmbed())
+```
+
+## Package layout
+
+```
+camroll-agent/
+├── pyproject.toml
+├── camroll_agent/
+│   ├── __init__.py
+│   ├── build_memory.py    Stage 1: VLM captioning + event grouping
+│   ├── index.py           Stage 2: SQLite + FTS5 + vector store
+│   ├── store.py             ↳ SQLite schema + read/write helpers
+│   ├── vector.py            ↳ embeddings + FAISS / numpy
+│   ├── agent.py           Stage 3: ReAct loop, pluggable backends
+│   ├── tools.py             ↳ the 5 atomic tools
+│   ├── prompts.py           ↳ system prompts + observation formatter
+│   ├── schemas.py           ↳ OpenAI-style tool schemas
+│   ├── cli.py             `camroll-agent inspect/build/index/run/ask`
+│   └── llm/               pluggable VLM + LLM backends
+│       ├── base.py
+│       ├── openai_client.py
+│       ├── gemini_client.py
+│       ├── anthropic_client.py
+│       └── local_client.py
+└── examples/
+    ├── sample_conversation.json
+    └── quickstart.py
+```
+
+---
+
+## Citation
+
+If this code helps your research, please cite the camroll / kii paper(s).
 
 ## License
 
-Photos remain under their original Creative Commons licenses (each photo's
-lightbox shows the exact one + a link to the legal text). The demo HTML/JS
-is your own.
+MIT.
