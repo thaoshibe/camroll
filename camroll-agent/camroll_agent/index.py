@@ -75,7 +75,28 @@ def run(
             "date_start": date_start,
             "date_end": date_end,
             "description": ev.get("description", "") or "",
+            "location": "",
+            "people": [],
         }
+
+    # aggregate location + people from images onto their parent event
+    from collections import Counter
+    event_locations: dict[str, Counter] = {n: Counter() for n in event_by_name}
+    event_people: dict[str, set] = {n: set() for n in event_by_name}
+    for img in images:
+        ev_name = img.get("event") or ""
+        if ev_name not in event_by_name:
+            continue
+        loc = (img.get("location") or "").strip()
+        if loc:
+            event_locations[ev_name][loc] += 1
+        for p in (img.get("people") or []):
+            if str(p).strip():
+                event_people[ev_name].add(str(p).strip())
+    for name in event_by_name:
+        top_locs = event_locations[name].most_common(1)
+        event_by_name[name]["location"] = top_locs[0][0] if top_locs else ""
+        event_by_name[name]["people"] = sorted(event_people[name])
 
     conn = ms.connect(memory_dir)
     try:
@@ -86,6 +107,8 @@ def run(
                 event_id=ev["event_id"], name=ev["name"],
                 date_start=ev["date_start"], date_end=ev["date_end"],
                 description=ev["description"],
+                location=ev["location"],
+                people=ev["people"],
             )
             ms.insert_event_fts(conn, ev["event_id"], _event_fts_text({"event": name, "description": ev["description"]}))
 
@@ -98,10 +121,13 @@ def run(
             ev_row = event_by_name.get(event_name)
             event_id = ev_row["event_id"] if ev_row else None
             event_desc = ev_row["description"] if ev_row else ""
+            people = img.get("people") or []
             ms.insert_image(
                 conn,
                 image_id=iid, path=path,
                 date=img.get("date"),
+                location=img.get("location") or "",
+                people=people if isinstance(people, list) else [],
                 event_id=event_id,
                 caption=img.get("caption", "") or "",
             )

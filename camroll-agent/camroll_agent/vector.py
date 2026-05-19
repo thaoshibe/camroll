@@ -29,7 +29,11 @@ import numpy as np
 
 try:
     import faiss
-except ImportError:
+    # Verify faiss is actually usable with the installed NumPy version
+    _test = np.zeros((1, 4), dtype=np.float32)
+    faiss.normalize_L2(_test)
+    del _test
+except Exception:
     faiss = None  # type: ignore
 
 VECTOR_DIRNAME = "vector_store"
@@ -66,7 +70,7 @@ class SentenceTransformerEmbeddingClient:
             raise ImportError(
                 f"sentence-transformers is required for the default embedding "
                 f"model ({model_name!r}). Install it with:\n"
-                f"    pip install camroll-agent[embeddings]\n"
+                f"    pip install -r requirements_local.txt\n"
                 f"or pick a different embedding model "
                 f"(e.g. --embedding-model text-embedding-3-small to use OpenAI)."
             ) from exc
@@ -87,7 +91,7 @@ class OpenAIEmbeddingClient:
         except ImportError as exc:
             raise ImportError(
                 f"OpenAI embeddings ({model_name!r}) require the openai SDK. "
-                f"Install it with:\n    pip install camroll-agent[openai]"
+                f"Install it with:\n    pip install -r requirements.txt"
             ) from exc
         self._client = OpenAI(
             api_key=os.environ.get("OPENAI_API_KEY"),
@@ -130,9 +134,8 @@ def build_vector_index(
     if embedding_client is None:
         embedding_client = _build_client(embedding_model)
 
-    vectors = np.array(
-        embedding_client.embed_many([r.text for r in records]),
-        dtype=np.float32,
+    vectors = np.ascontiguousarray(
+        np.array(embedding_client.embed_many([r.text for r in records]), dtype=np.float32)
     )
     if vectors.ndim != 2 or vectors.shape[0] != len(records):
         raise ValueError("Embedding client returned an unexpected vector shape.")
@@ -300,9 +303,6 @@ def _build_image_records(images: Iterable[dict[str, Any]]) -> list[MemoryRecord]
 
 
 def _normalize_rows(vectors: np.ndarray) -> None:
-    if faiss is not None:
-        faiss.normalize_L2(vectors)
-        return
     norms = np.linalg.norm(vectors, axis=1, keepdims=True)
     norms[norms == 0] = 1.0
     vectors /= norms

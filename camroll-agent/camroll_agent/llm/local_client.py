@@ -1,6 +1,6 @@
 """Local HuggingFace VLM client (Qwen-VL, Kimi-VL, generic image-text-to-text).
 
-Requires `pip install camroll-agent[local]` and a CUDA GPU.
+Requires `pip install -r requirements_local.txt` and a CUDA GPU.
 
 Supported families (auto-detected):
   - qwen-vl  Qwen2.5-VL, Qwen3-VL  (uses qwen_vl_utils when available)
@@ -42,7 +42,8 @@ class LocalVLM(VLMClient):
             from transformers import AutoProcessor
         except ImportError as exc:
             raise ImportError(
-                "Local VLM requires `pip install camroll-agent[local]`."
+                "Local VLM requires torch + transformers. "
+                "Run: pip install -r requirements_local.txt"
             ) from exc
 
         if not torch.cuda.is_available():

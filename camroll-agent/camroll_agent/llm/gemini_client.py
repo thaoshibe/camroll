@@ -1,6 +1,6 @@
 """Google Gemini VLM + LLM clients.
 
-Requires `pip install camroll-agent[gemini]` and `GEMINI_API_KEY` (or
+Requires `pip install -r requirements.txt` and `GEMINI_API_KEY` (or
 `GOOGLE_API_KEY`) env var.
 """
 from __future__ import annotations
@@ -33,7 +33,7 @@ def _client():
         from google.genai import types as gt
     except ImportError as exc:
         raise ImportError(
-            "Gemini backend requires `pip install camroll-agent[gemini]`."
+            "Gemini backend requires google-genai. Run: pip install -r requirements.txt"
         ) from exc
     return genai.Client(
         api_key=_api_key(),

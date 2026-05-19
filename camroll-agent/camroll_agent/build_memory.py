@@ -64,6 +64,8 @@ class ImageRow:
     date: str
     operation: str
     event: Optional[str] = None
+    location: str = ""
+    people: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -276,6 +278,8 @@ def run(
             path=str(image_path),
             date=current_date,
             operation=decision["operation"],
+            location=decision.get("location", ""),
+            people=decision.get("people", []),
         )
         event_name = _apply_event_operation(
             decision=decision,
@@ -349,9 +353,15 @@ def _run_step(
     elif "event_name" in event_payload and "event" not in event_payload:
         event_payload = {**event_payload, "event": event_payload["event_name"]}
 
+    location = str(payload.get("location") or "").strip()
+    people_raw = payload.get("people") or []
+    people = [str(p).strip() for p in people_raw if str(p).strip()] if isinstance(people_raw, list) else []
+
     return {
         "operation": operation,
         "image_caption": image_caption,
+        "location": location,
+        "people": people,
         "event": event_payload,
         "parsed_output": payload,
         "raw_response": response,
@@ -367,9 +377,13 @@ def _build_prompt(
     latest_event: Optional[EventRow],
     extras: dict[str, Any] | None,
 ) -> str:
-    recent_payload = [asdict(row) for row in recent_rows]
+    recent_payload = [
+        {k: v for k, v in asdict(row).items() if k != "path"}
+        for row in recent_rows
+    ]
     latest_event_payload = (
-        {"event": latest_event.event, "description": latest_event.description}
+        {"event": latest_event.event, "description": latest_event.description,
+         "image_count": len(latest_event.images)}
         if latest_event else None
     )
     description = library_description or "No extra album description was provided."
@@ -388,12 +402,11 @@ Important:
 - Never describe the first image in `image_caption`.
 
 The album is processed in chronological order from oldest to newest.
-Only update the most recent event row if the current image clearly belongs to it.
 
 Event definition:
 - An event is an episodic memory unit: a trip, outing, meal, hangout, celebration, class activity, etc.
 - An event can span multiple consecutive photos with different dates, locations, subjects, or close-ups, as long as they still belong to the same broader episode (e.g., a road trip, a hangout with friends).
-- Event names should summarize the broader episode, not the most eye-catching object in a single frame.
+- Event names should summarize the broader episode using the short and concise words and phrases.
 
 Album description:
 {description}
@@ -410,11 +423,13 @@ Latest event summary:
 
 Tasks:
 1. Write a detailed personalized caption for image 2 as if the person in image 1 is describing their own photo in first person.
-2. Choose exactly one operation for the event table:
+2. Extract the location visible or implied in image 2 (city, venue, landmark, room type, etc.). Use null if nothing can be inferred.
+3. List any people visible in image 2 using generic descriptors ("a friend", "my mom", "a man in a red jacket"). Do not invent names. Use [] if no people are visible.
+4. Choose exactly one operation for the event table:
    - ADD: create a new event row
    - UPDATE: update the latest event row
    - NO_OP: do not modify the event table
-3. If you choose ADD or UPDATE, return a full event row with fields:
+5. If you choose ADD or UPDATE, return a full event row with fields:
    - event_name
    - description
    - date
@@ -424,24 +439,25 @@ Rules:
 - The image caption must always be present.
 - Use first-person wording when natural.
 - The caption must describe image 2 only, not the reference image.
-- If you don't know the person identity in image 2, use general wording ("a friend", "my mom", "a man", etc.) instead of inventing a name.
 - Mention the important visible content in image 2: setting, people, objects, activity, atmosphere.
 - Ground the caption in visible evidence; do not invent precise facts.
-- For ADD or UPDATE, the event row's `images` must include the current image path.
+- For ADD or UPDATE, the event row's `images` list must contain ONLY the current image path (one entry). Do NOT repeat or list previous images.
 - Prefer UPDATE when the current image is still part of the same broader episode.
 - Prefer ADD only when there is a real episode boundary (change in outing, venue, social context, major activity, separate occasion).
-- Event description should be at most 300 words; summarize / condense it over time.
+- Event description should be at most 200 words; summarize / condense it over time.
 - Return valid JSON only. No markdown fences.
 
 JSON schema:
 {{
   "operation": "ADD" | "UPDATE" | "NO_OP",
   "image_caption": "string",
+  "location": "string or null",
+  "people": ["descriptor", "..."],
   "event": {{
     "event_name": "string",
     "description": "string",
     "date": "string",
-    "images": ["full image path", "..."]
+    "images": ["full image path"]
   }} | null
 }}
 """.strip()
@@ -569,6 +585,8 @@ def _load_existing(output_dir: Path):
             date=str(it.get("date", "")).strip() or "unknown",
             operation=str(it.get("operation", "NO_OP")).strip() or "NO_OP",
             event=str(it.get("event", "")).strip() or None,
+            location=str(it.get("location") or "").strip(),
+            people=[str(p).strip() for p in (it.get("people") or []) if str(p).strip()],
         )
         for it in images_payload
     ]
@@ -658,8 +676,8 @@ def _write_outputs(
     )
     _write_csv(
         output_dir / "images.csv",
-        ["image", "caption", "path", "date", "operation", "event"],
-        [asdict(r) for r in image_rows],
+        ["image", "caption", "path", "date", "operation", "event", "location", "people"],
+        [{**asdict(r), "people": " | ".join(r.people)} for r in image_rows],
     )
 
 

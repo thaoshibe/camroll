@@ -1,6 +1,6 @@
 """OpenAI VLM + LLM clients.
 
-Requires `pip install camroll-agent[openai]` and `OPENAI_API_KEY` env var.
+Requires `pip install -r requirements.txt` and `OPENAI_API_KEY` env var.
 Custom OPENAI_BASE_URL is honored (useful for OpenAI-compatible proxies / vLLM).
 """
 from __future__ import annotations
@@ -50,7 +50,7 @@ def _client():
         from openai import OpenAI
     except ImportError as exc:
         raise ImportError(
-            "OpenAI backend requires `pip install camroll-agent[openai]`."
+            "OpenAI backend requires the openai SDK. Run: pip install -r requirements.txt"
         ) from exc
     return OpenAI(
         api_key=os.environ.get("OPENAI_API_KEY"),

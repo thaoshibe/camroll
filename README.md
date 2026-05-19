@@ -27,13 +27,13 @@
 
 ```bash
 git clone https://github.com/thaoshibe/camroll
-cd camroll/camroll-agent
+cd camroll
 
 conda create -n camroll python=3.10 -y
 conda activate camroll
 
 pip install -r requirements.txt
-pip install -e .
+pip install -e camroll-agent/
 ```
 
 OpenAI + Gemini APIs. No torch (~50 MB install).
@@ -43,13 +43,13 @@ OpenAI + Gemini APIs. No torch (~50 MB install).
 
 ```bash
 git clone https://github.com/thaoshibe/camroll
-cd camroll/camroll-agent
+cd camroll
 
 conda create -n camroll-local python=3.10 -y
 conda activate camroll-local
 
 pip install -r requirements_local.txt
-pip install -e .
+pip install -e camroll-agent/
 ```
 
 Adds Qwen-VL / Kimi-VL + `sentence-transformers`. Needs CUDA (~3 GB install).
@@ -72,14 +72,16 @@ no local install). If you'd rather use a local sentence-transformers model
 
 ## Quickstart
 
+All commands below assume you are at the **repo root** (`camroll/`).
+
 ### 1. Prepare a conversation JSON
 
 ```jsonc
 // my_album.json
 {
-  "root_folder": "/absolute/path/to/photos",
-  "profile_image": "profile.jpg",
-  "library_description": "A 2005-2013 album from a college student.",
+  "root_folder": "/absolute/path/to/photos",   // all image paths resolve relative to this
+  "profile_image": "profile.jpg",              // reference photo of the person (used for identity context)
+  "library_description": "This is my personal photo camera roll.",
   "turns": [
     {"date": "2005-10-01", "user": {"image": "847410131.jpg"}},
     {"date": "2005-10-01", "user": {"image": "847410831.jpg"}},
@@ -88,47 +90,131 @@ no local install). If you'd rather use a local sentence-transformers model
 }
 ```
 
-Each turn has a `date` and a `user.image` path (absolute or relative to
-`root_folder`). You can include extra fields on the turn — they'll be
-passed to the VLM as additional context.
+A ready-to-run sample (6 real photos) is at `camroll-agent/examples/sample_conversation.json`.
+
+Preview what will be processed without calling any API:
+
+```bash
+python -m camroll_agent inspect camroll-agent/examples/sample_conversation.json
+```
 
 ### 2. Build the memory (Stage 1 + Stage 2)
 
+**Using OpenAI** (default):
+
 ```bash
-camroll-agent run my_album.json -o memory/
+export OPENAI_API_KEY=sk-…
+
+python -m camroll_agent run camroll-agent/examples/sample_conversation.json -o memory/ \
+    --vlm-backend openai \
+    --vlm-model gpt-4o \
+    --embedding-model text-embedding-3-small
 ```
 
-Or step by step:
+**Using Gemini**:
 
 ```bash
-camroll-agent build my_album.json -o memory/    # VLM captioning + event grouping
-camroll-agent index memory/                     # SQLite + vector store
+export GEMINI_API_KEY=…
+
+python -m camroll_agent run camroll-agent/examples/sample_conversation.json -o memory/ \
+    --vlm-backend gemini \
+    --vlm-model gemini-2.5-flash \
+    --embedding-model text-embedding-3-small   # still needs OPENAI_API_KEY unless you use local embeddings
 ```
 
-You can preview what would be processed without calling the VLM:
+**Fully local — no API key needed (GPU required)**:
 
 ```bash
-camroll-agent inspect my_album.json
+python -m camroll_agent run camroll-agent/examples/sample_conversation.json -o memory/ \
+    --vlm-backend local \
+    --vlm-model Qwen/Qwen2.5-VL-7B-Instruct \
+    --embedding-model sentence-transformers/all-MiniLM-L6-v2
+```
+
+> First run downloads Qwen2.5-VL-7B from HuggingFace (~15 GB). Cached after that.
+
+**All `run` flags:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `-o / --output-dir` | *(required)* | Where to write the memory |
+| `--vlm-backend` | `openai` | `openai` \| `gemini` \| `local` |
+| `--vlm-model` | backend default | e.g. `gpt-4o`, `gemini-2.5-flash`, `Qwen/Qwen2.5-VL-7B-Instruct` |
+| `--embedding-model` | `text-embedding-3-small` | OpenAI model name or any `sentence-transformers` ID |
+| `--max-images` | all | Process at most N images (useful for smoke tests) |
+| `--resume` | off | Continue an interrupted run |
+
+Or run Stage 1 and Stage 2 separately:
+
+```bash
+python -m camroll_agent build camroll-agent/examples/sample_conversation.json -o memory/  \
+    --vlm-backend openai --vlm-model gpt-4o --max-images 10 --resume
+
+python -m camroll_agent index memory/ \
+    --embedding-model text-embedding-3-small
 ```
 
 ### 3. Ask questions
 
+**Using OpenAI** (default):
+
 ```bash
-camroll-agent ask "When did I go to Lake Michigan?" --memory memory/
+export OPENAI_API_KEY=sk-…
+
+python -m camroll_agent ask "When did I go to Lake Michigan?" \
+    --memory memory/ \
+    --llm-backend openai \
+    --llm-model gpt-4o
 ```
 
-For a streaming trace of thoughts + tool calls:
+**Using Gemini**:
 
 ```bash
-camroll-agent ask "..." --memory memory/ --stream
+export GEMINI_API_KEY=…
+
+python -m camroll_agent ask "When did I go to Lake Michigan?" \
+    --memory memory/ \
+    --llm-backend gemini \
+    --llm-model gemini-2.5-flash
 ```
 
-To let the agent actually look at photos with a VLM (for visual details
-that captions miss):
+**Fully local (no API key needed, GPU required)**:
 
 ```bash
-camroll-agent ask "What color was the car at the airport?" \
-    --memory memory/ --enable-view-image
+python -m camroll_agent ask "When did I go to Lake Michigan?" \
+    --memory memory/ \
+    --llm-backend local \
+    --llm-model Qwen/Qwen2.5-Coder-7B-Instruct
+```
+
+**All `ask` flags:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--memory` | *(required)* | Memory directory built in Step 2 |
+| `--llm-backend` | `openai` | `openai` \| `gemini` \| `local` (Qwen, GPU required) |
+| `--llm-model` | backend default | e.g. `gpt-4o`, `gemini-2.5-flash`, `Qwen/Qwen2.5-Coder-7B-Instruct` |
+| `--vlm-backend` | `openai` | VLM used by `view_image` (`openai` \| `gemini` \| `local`) |
+| `--vlm-model` | backend default | e.g. `gpt-4o`, `gemini-2.5-flash`, `Qwen/Qwen2.5-VL-7B-Instruct` |
+| `--no-stream` | off | Suppress live tool output, print final answer only |
+| `--json` | off | Output full JSON (answer + tool trace + latency) |
+| `--max-steps` | `25` | Max ReAct steps before stopping |
+| `--max-view-image-calls` | `5` | Cap on expensive `view_image` calls |
+
+Examples:
+
+```bash
+# use a different VLM for viewing photos (default: openai)
+python -m camroll_agent ask "What color was the car at the airport?" \
+    --memory memory/ --vlm-backend local
+
+# get structured JSON output (answer + tool trace + latency)
+python -m camroll_agent ask "When did I go to Lake Michigan?" \
+    --memory memory/ --json
+
+# suppress live output, print final answer only
+python -m camroll_agent ask "When did I go to Lake Michigan?" \
+    --memory memory/ --no-stream
 ```
 
 ## Python API

@@ -42,7 +42,7 @@ def build_vlm(backend: str, model: str | None = None, **kwargs) -> VLMClient:
 
 
 def build_llm(backend: str, model: str | None = None, **kwargs) -> LLMClient:
-    """Factory for LLM clients (tool-calling). backend ∈ {openai, gemini}."""
+    """Factory for LLM clients (tool-calling). backend ∈ {openai, gemini, local}."""
     name = backend.lower().strip()
     if name in ("openai", "gpt"):
         from camroll_agent.llm.openai_client import OpenAILLM
@@ -50,4 +50,7 @@ def build_llm(backend: str, model: str | None = None, **kwargs) -> LLMClient:
     if name == "gemini":
         from camroll_agent.llm.gemini_client import GeminiLLM
         return GeminiLLM(model=model, **kwargs)
+    if name in ("local", "qwen", "hf", "huggingface"):
+        from camroll_agent.llm.qwen_llm import QwenLLM
+        return QwenLLM(model_name=model)
     raise ValueError(f"unknown LLM backend: {backend!r}")
