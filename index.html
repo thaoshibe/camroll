@@ -1,9 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-49GLBPKVMY"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-49GLBPKVMY');
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>camroll · personal camera roll VQA</title>
+<title>camroll · Personal AI Agent for Camera Roll VQA</title>
 <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='%23FFE299'/><text x='32' y='44' font-family='Caveat,cursive' font-size='40' text-anchor='middle' fill='%231a1812'>cr</text></svg>">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Caveat:wght@500;600;700&display=swap" rel="stylesheet">
 <script>
@@ -2416,7 +2425,7 @@ body.drag-over .chatbar{
          Lives in canvas coords so it pans with the board. Position is
          set by JS so it sits at BOARD_W/2, BOARD_H/2. -->
     <div class="board-prompt" id="board-prompt">
-      <div class="bp-eyebrow">camroll · personal camera roll VQA</div>
+      <div class="bp-eyebrow">camroll · Personal AI Agent for Camera Roll VQA</div>
       <div class="bp-q">If an AI assistant could<br>access your <span class="bp-accent">camera roll</span>,<br>what would you ask?</div>
       <div class="bp-sub">drop your question on the board — see what others have asked around it</div>
       <div class="bp-back">
@@ -2433,15 +2442,15 @@ body.drag-over .chatbar{
           <span class="bp-ico-glyph"></span>
           <span class="bp-ico-label">Code</span>
         </a>
-        <a class="bp-link-icon bp-ico-hf bp-ico-hf-dataset" href="https://huggingface.co/datasets/thaoshibe/camroll"
-           target="_blank" rel="noopener" title="HuggingFace dataset" aria-label="HuggingFace dataset">
-          <span class="bp-ico-glyph"></span>
-          <span class="bp-ico-label">Data</span>
-        </a>
         <a class="bp-link-icon bp-ico-hf bp-ico-hf-space"   href="https://huggingface.co/spaces/thaoshibe/camroll-agent"
            target="_blank" rel="noopener" title="HuggingFace Space — camroll-agent" aria-label="HuggingFace Space — camroll-agent">
           <span class="bp-ico-glyph"></span>
           <span class="bp-ico-label">Space</span>
+        </a>
+        <a class="bp-link-icon" href="page/demo.html"
+           target="_blank" rel="noopener" title="Live Demo" aria-label="Live Demo">
+          <span class="bp-ico-glyph">🚀</span>
+          <span class="bp-ico-label">Demo</span>
         </a>
       </div>
     </div>

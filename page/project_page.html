@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>camroll · Personal Camera Roll Visual Question Answering</title>
-<meta name="description" content="Personal Camera Roll Visual Question Answering — the camroll dataset (50 users, 31,476 images, 2,500 QA pairs) and camroll-agent, a conversational AI agent with hierarchical memory for long-horizon personalized visual content.">
+<title>camroll · Personal AI Agent for Camera Roll VQA</title>
+<meta name="description" content="Personal AI Agent for Camera Roll VQA — the camroll dataset (50 users, 31,476 images, 2,500 QA pairs) and camroll-agent, a conversational AI agent with hierarchical memory for long-horizon personalized visual content.">
 <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='%23FFE299'/><text x='32' y='44' font-family='Caveat,cursive' font-size='40' text-anchor='middle' fill='%231a1812'>cr</text></svg>">
 
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Caveat:wght@500;600;700&display=swap" rel="stylesheet">
@@ -402,7 +402,6 @@ h2.section-h::after{
 
 /* Body copy inside sections. */
 .prose{
-  max-width:760px;
   font-size:16px;
   color:var(--text-mid);
 }
@@ -422,18 +421,8 @@ h2.section-h::after{
 }
 .teaser .teaser-img{
   width:100%;
-  aspect-ratio:16/9;
-  background:
-    repeating-linear-gradient(45deg,
-      rgba(0,0,0,0.04) 0 12px,
-      transparent 12px 24px),
-    linear-gradient(135deg, var(--bg-elev-2), var(--bg-elev-3));
-  display:flex; align-items:center; justify-content:center;
-  color:var(--text-faint);
-  font-family:'Caveat', cursive;
-  font-size:22px;
-  text-align:center;
-  padding:24px;
+  display:block;
+  line-height:0;
 }
 .teaser .teaser-cap{
   padding:14px 18px;
@@ -546,7 +535,7 @@ footer .scribble-mark{
 
 <header class="header">
   <span class="title"><strong>camroll</strong></span>
-  <span class="sub">Personal Camera Roll Visual Question Answering · paper, code, dataset, demo</span>
+  <span class="sub">Personal AI Agent for Camera Roll VQA · paper, code, dataset, demo</span>
   <nav>
     <a href="#abstract">Abstract</a>
     <a href="#demos">Demos</a>
@@ -565,37 +554,37 @@ footer .scribble-mark{
   <section class="hero">
     <div class="eyebrow">research project · 2026</div>
     <h1>
-      Personal <span class="hl">Camera Roll</span><br>
-      Visual Question Answering
+      Personal AI Agent<br>
+      for <span class="hl">Camera Roll</span> VQA
     </h1>
     <div class="tagline">if an AI could see your whole camera roll, what would you ask?</div>
     <div class="authors">
-      <a href="https://thaoshibe.github.io" target="_blank" rel="noopener">Thao Nguyen</a><sup>1,*</sup>
+      <a href="https://thaoshibe.github.io" target="_blank" rel="noopener">Thao Nguyen</a><sup>1</sup>
       ·
-      <a href="https://yuheng-li.github.io/" target="_blank" rel="noopener">Yuheng Li</a><sup>2,*</sup>
+      <a href="https://krsingh.cs.ucdavis.edu/" target="_blank" rel="noopener">Krishna Kumar Singh</a><sup>3</sup>
       ·
-      <a href="https://krsingh.cs.ucdavis.edu/" target="_blank" rel="noopener">Krishna Kumar Singh</a><sup>2</sup>
+      <a href="https://cs-people.bu.edu/donhk/" target="_blank" rel="noopener">Donghyun Kim</a><sup>2</sup>
       ·
-      <a href="https://cs-people.bu.edu/donhk/" target="_blank" rel="noopener">Donghyun Kim</a><sup>3</sup>
+      <a href="https://pages.cs.wisc.edu/~yongjaelee/" target="_blank" rel="noopener">Yong Jae Lee</a><sup>1,†</sup>
       ·
-      <a href="https://pages.cs.wisc.edu/~yongjaelee/" target="_blank" rel="noopener">Yong Jae Lee</a><sup>1</sup>
+      <a href="https://yuheng-li.github.io/" target="_blank" rel="noopener">Yuheng Li</a><sup>3,†</sup>
     </div>
     <div class="affils">
       <span class="aff"><sup>1</sup>UW&ndash;Madison</span>
-      <span class="aff"><sup>2</sup>Adobe Research</span>
-      <span class="aff"><sup>3</sup>Korea University</span>
+      <span class="aff"><sup>2</sup>Korea University</span>
+      <span class="aff"><sup>3</sup>Adobe Research</span>
     </div>
-    <div class="cofirst-note"><sup>*</sup> equal contribution</div>
+    <div class="cofirst-note"><sup>†</sup> equal advising</div>
     <div class="venue">Pre-print · 2026</div>
   </section>
 
   <!-- ── QUICK LINKS ───────────────────────────────────────── -->
   <section id="demos">
     <h2 class="section-h">explore</h2>
-    <p class="prose" style="margin-top:8px; max-width:640px;">
+    <p class="prose" style="margin-top:8px;">
       The project lives across a paper, a conversational agent, a benchmark
-      dataset, and three interactive pages — a live question board, an
-      agent demo, and a dataset viewer. Pick where you'd like to start.
+      dataset, and two interactive pages — a live question board and an
+      agent demo. Pick where you'd like to start.
     </p>
     <div class="links">
 
@@ -625,13 +614,6 @@ footer .scribble-mark{
         <span class="lc-arrow">→</span>
       </a>
 
-      <a class="link-card c-pink" href="dataviewer.html">
-        <div class="lc-ico">🗂</div>
-        <div class="lc-label">browse</div>
-        <div class="lc-title">Dataset viewer</div>
-        <div class="lc-desc">All 50 users, 31,476 images, and 2,500 ground-truth Q&amp;A pairs.</div>
-        <span class="lc-arrow">→</span>
-      </a>
 
       <a class="link-card c-violet" href="https://github.com/thaoshibe/camroll" target="_blank" rel="noopener">
         <div class="lc-ico">⌨</div>
@@ -641,13 +623,6 @@ footer .scribble-mark{
         <span class="lc-arrow">→</span>
       </a>
 
-      <a class="link-card c-orange" href="https://huggingface.co/datasets/thaoshibe/camroll" target="_blank" rel="noopener">
-        <div class="lc-ico">🤗</div>
-        <div class="lc-label">dataset</div>
-        <div class="lc-title">HuggingFace</div>
-        <div class="lc-desc">Full camroll release — 50 users, 31,476 images, 2,500 manually-annotated Q&amp;A pairs.</div>
-        <span class="lc-arrow">→</span>
-      </a>
 
       <a class="link-card c-teal" href="https://huggingface.co/spaces/thaoshibe/camroll-agent" target="_blank" rel="noopener">
         <div class="lc-ico">🚀</div>
@@ -657,13 +632,6 @@ footer .scribble-mark{
         <span class="lc-arrow">→</span>
       </a>
 
-      <a class="link-card c-red" href="https://www.youtube.com/" target="_blank" rel="noopener">
-        <div class="lc-ico">🎬</div>
-        <div class="lc-label">watch</div>
-        <div class="lc-title">2-min video</div>
-        <div class="lc-desc">Quick walkthrough of the agent's tool-use loop on a real visitor question.</div>
-        <span class="lc-arrow">→</span>
-      </a>
 
     </div>
   </section>
@@ -673,7 +641,7 @@ footer .scribble-mark{
     <h2 class="section-h">abstract</h2>
     <div class="prose">
       <p>
-        We study the <strong>personal camera roll visual question answering</strong>
+        We study the <strong>personal AI agent for camera roll VQA</strong>
         setting. In this setting, a conversational AI assistant can access a
         user's personal camera roll and retrieve relevant photos to answer
         queries, ranging from simple factual questions
@@ -734,45 +702,39 @@ footer .scribble-mark{
   <!-- ── TEASER ────────────────────────────────────────────── -->
   <section id="teaser">
     <h2 class="section-h">how it works</h2>
+    <div class="prose" style="margin-bottom:20px;">
+      <p><strong>camroll-agent</strong> is an AI agent that does VQA on a personal camera roll.</p>
+      <ul style="margin:10px 0 0 22px;">
+        <li>index your camera roll into a hierarchical queryable memory (events &lt;&lt; captions &lt;&lt; images).</li>
+        <li>the agent answers questions over that memory using 5 atomic tools: search, grep, list_by_date, get, and view_image.</li>
+      </ul>
+    </div>
     <div class="teaser">
       <div class="teaser-img">
-        [ teaser figure — drop a PNG/GIF of the agent retrieving photos here ]
+        <img src="../assets/camroll-memory.png" alt="Hierarchical memory diagram" style="width:100%;border-radius:8px;">
       </div>
       <div class="teaser-cap">
-        <b>Figure 1.</b> Given a free-form question, the agent picks among
-        four retrieval tools (caption search, vector search, date filter, event
-        lookup), reads the returned photos, and answers in natural language —
-        with citations back to the source photos.
+        Hierarchical memory for personal camera rolls, organized from low-level visual pixels (<em>I</em>) to higher semantic abstractions (captions <em>C</em>, events <em>E</em>). Agent interactions are designed accordingly, ranging from expensive tool (<code>view</code>, <code>get</code>) to cheaper one (<code>search</code>, <code>grep</code>, <code>list</code>).
       </div>
     </div>
   </section>
 
   <!-- ── DATA ─────────────────────────────────────────────── -->
   <section id="data">
-    <h2 class="section-h">data &amp; reproducibility</h2>
+    <h2 class="section-h">dataset</h2>
     <div class="prose">
-      <p>
-        Everything is open and reproducible:
-      </p>
       <ul style="margin:0 0 14px 22px;">
-        <li><strong>50 users, 31,476 images, 2,500 QA pairs</strong> —
+        <li><strong>Dataset: 50 users, 31,476 images, 2,500 QA pairs</strong> —
             sourced from YFCC100M under each photo's original Creative Commons
             license and served by Flickr's CDN; nothing is re-uploaded.</li>
         <li><strong>Manual annotations</strong> — every question/answer pair
             was hand-written to mimic real-world camera-roll usage, then
             grounded in the user's actual photos.</li>
-        <li><strong>Agent traces</strong> — every benchmark question ships
-            with the full hierarchical-memory + tool-call trace that produced
-            its answer, so results are step-by-step reproducible.</li>
-        <li><strong>Code</strong> — camroll-agent loop, the four-tool
-            retrieval set, eval harness, and data-prep pipeline all live in
-            <a href="https://github.com/thaoshibe/camroll" target="_blank"
-            rel="noopener">the GitHub repo</a>.</li>
       </ul>
       <p>
-        The interactive pages on this site all run client-side — they fetch
-        only the per-user JSON files from this folder; no personal data ever
-        touches a server.
+        For dataset access, please contact
+        <a href="mailto:yuhli@adobe.com">yuhli@adobe.com</a> and
+        <a href="mailto:krishsin@adobe.com">krishsin@adobe.com</a>.
       </p>
     </div>
   </section>
@@ -784,16 +746,16 @@ footer .scribble-mark{
       If the camroll dataset or camroll-agent helps your work, we'd love a citation:
     </div>
     <div class="bibtex-wrap">
-      <button class="copy-btn" type="button" id="copy-bibtex">copy</button>
 <pre id="bibtex">@article{nguyen2026camroll,
-  title   = {Personal Camera Roll Visual Question Answering},
-  author  = {Nguyen, Thao and Li, Yuheng and Singh, Krishna Kumar
-             and Kim, Donghyun and Lee, Yong Jae},
+  title   = {Personal AI Agent for Camera Roll VQA},
+  author  = {Nguyen, Thao and Singh, Krishna Kumar
+             and Kim, Donghyun and Lee, Yong Jae and Li, Yuheng},
   journal = {arXiv preprint arXiv:2606.XXXXX},
   year    = {2026},
-  note    = {Thao Nguyen and Yuheng Li contributed equally.},
+  note    = {Yong Jae Lee and Yuheng Li advised equally.},
   url     = {https://thaoshibe.github.io/camroll/}
 }</pre>
+      <button class="copy-btn" type="button" id="copy-bibtex">copy</button>
     </div>
   </section>
 

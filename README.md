@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="assets/banner.svg" alt="camroll — Personal Camera Roll Visual Question Answering" width="100%">
+  <img src="assets/banner.svg" alt="camroll — Personal AI Agent for Camera Roll VQA" width="100%">
 </p>
 
 <p align="center">
   <a href="https://arxiv.org/abs/XXXX.XXXXX"><img src="https://img.shields.io/badge/arXiv-paper-b31b1b.svg?logo=arxiv&logoColor=white" alt="arXiv"></a>
   <a href="https://thaoshibe.github.io/camroll/"><img src="https://img.shields.io/badge/Project-Page-2a6310.svg?logo=github&logoColor=white" alt="Project Page"></a>
-  <a href="https://huggingface.co/datasets/thaoshibe/camroll-yfcc20"><img src="https://img.shields.io/badge/%F0%9F%A4%97_Dataset-camroll--yfcc20-ffd21e.svg" alt="Dataset"></a>
   <a href="https://huggingface.co/spaces/thaoshibe/camroll-agent"><img src="https://img.shields.io/badge/%F0%9F%A4%97_Demo-Spaces-ffd21e.svg" alt="Demo"></a>
+  <a href="page/demo.html"><img src="https://img.shields.io/badge/🚀_Demo-Live-ff6b35.svg" alt="Live Demo"></a>
 </p>
 
 > **TL;DR:** `camroll-agent` is an **AI agent** that does VQA on a personal camera roll.
@@ -328,7 +328,7 @@ camroll-agent/
 
 ## Citation
 
-If this code helps your research, please cite the camroll / kii paper(s).
+If this code helps your research, please cite the camroll paper.
 
 ## License
 
