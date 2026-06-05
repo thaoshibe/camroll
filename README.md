@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://arxiv.org/abs/XXXX.XXXXX"><img src="https://img.shields.io/badge/arXiv-paper-b31b1b.svg?logo=arxiv&logoColor=white" alt="arXiv"></a>
+  <a href="https://arxiv.org/abs/2606.05275"><img src="https://img.shields.io/badge/arXiv-paper-b31b1b.svg?logo=arxiv&logoColor=white" alt="arXiv"></a>
   <a href="https://thaoshibe.github.io/camroll/"><img src="https://img.shields.io/badge/Project-Page-2a6310.svg?logo=github&logoColor=white" alt="Project Page"></a>
   <a href="https://huggingface.co/spaces/thaoshibe/camroll-agent"><img src="https://img.shields.io/badge/%F0%9F%A4%97_Demo-Spaces-ffd21e.svg" alt="Demo"></a>
   <a href="page/demo.html"><img src="https://img.shields.io/badge/🚀_Demo-Live-ff6b35.svg" alt="Live Demo"></a>
@@ -328,7 +328,17 @@ camroll-agent/
 
 ## Citation
 
-If this code helps your research, please cite the camroll paper.
+```bibtex
+@misc{camroll,
+      title={Personal AI Agent for Camera Roll VQA}, 
+      author={Thao Nguyen and Krishna Kumar Singh and Donghyun Kim and Yong Jae Lee and Yuheng Li},
+      year={2026},
+      eprint={2606.05275},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2606.05275}, 
+}
+```
 
 ## License
 

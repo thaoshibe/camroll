@@ -1,6 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<!--
+  ============================================================
+  IMPORTANT: If you are cloning / reusing this website,
+  PLEASE COMMENT OUT or REMOVE the Google Analytics tag below.
+  Otherwise your traffic will be sent to my personal GA account.
+  Replace 'G-49GLBPKVMY' with your own Measurement ID if you
+  want analytics on your own site.
+  ============================================================
+-->
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-49GLBPKVMY"></script>
 <script>
@@ -2434,8 +2443,7 @@ body.drag-over .chatbar{
           <span class="bp-back-text">project page</span>
         </a>
         <span class="bp-sep" aria-hidden="true">·</span>
-        <!-- TODO: replace # with the real arxiv URL once the paper is on arxiv -->
-        <a class="bp-link-icon bp-ico-arxiv"  href="#"
+        <a class="bp-link-icon bp-ico-arxiv"  href="https://arxiv.org/abs/2606.05275"
            target="_blank" rel="noopener" title="arXiv paper" aria-label="arXiv paper"></a>
         <a class="bp-link-icon bp-ico-github" href="https://github.com/thaoshibe/camroll"
            target="_blank" rel="noopener" title="GitHub repo" aria-label="GitHub repo">
@@ -2749,6 +2757,157 @@ const EXAMPLE_TASKS = [
   //   keywords:['food', 'home', 'travel'],   // for picking matching thumbs
   //   nUserImages: 0, nAiImages: 3,
   // },
+
+  // ─────────────────────────────────────────────────────────────
+  // 🎓 CONFERENCE-TRIP QUESTIONS — a research conference is just
+  //    another chapter of the camera roll, so these sit naturally
+  //    alongside the personal-memory examples. (Borrowed from the
+  //    CVPR 2026 / Denver edition of the board.)
+  // ─────────────────────────────────────────────────────────────
+  {
+    category: 'semantic',
+    name: 'Theo M.',
+    text: 'Roughly how many coffees did I have during the conference week? I have a bad feeling.',
+    why: 'My camera roll knows the truth better than I do, and I want AI to deliver the verdict so I can\'t lie to myself.',
+    aiReply: 'Across those 4 days I count 19 coffee/espresso photos — that\'s ~4.75/day. Peak was the keynote day (6 cups). 11 from the venue carts, 8 from cafes nearby. Showing your most-photographed cup:',
+    keywords:['coffee', 'cafe', 'drink', 'restaurant', 'food', 'meal'],
+    nUserImages: 0, nAiImages: 3,
+  },
+  {
+    category: 'episodic',
+    name: 'Priya N.',
+    text: 'Where did we go for the group dinner on the last night of the conference, and what did I order?',
+    why: 'It was great, I was jetlagged, and the name is completely gone — the receipt and the dishes are sitting somewhere in my photos.',
+    aiReply: 'That was the steakhouse downtown, ~8pm on the Friday. Your photos show a bone-in ribeye, charred Brussels sprouts, and a shared skillet cookie; a menu shot confirms the venue. Showing the dishes:',
+    keywords:['restaurant', 'food', 'dinner', 'meal', 'plate', 'wine', 'drink', 'menu'],
+    nUserImages: 0, nAiImages: 2,
+  },
+  {
+    category: 'episodic',
+    name: 'Lena V.',
+    text: 'I took a selfie with someone at the conference whose talk blew my mind, but forgot to catch their name. Who are they?',
+    why: 'I want to cite them and maybe email them, but all I have is the selfie and a vague memory of the words "world models".',
+    aiReply: 'From your selfie (~4:50pm that afternoon), the badge reads "A. Okafor." Cross-referencing your roll, you also shot 3 slides from their talk on world models — so it\'s Dr. Amara Okafor. Here\'s the selfie + the title slide to confirm:',
+    keywords:['selfie', 'portrait', 'people', 'smile', 'group', 'friends'],
+    nUserImages: 0, nAiImages: 2,
+  },
+  {
+    category: 'creative',
+    name: 'Sam K.',
+    text: 'I extended the trip and drove into the mountains after the conference. Turn those photos into a day-by-day travel diary.',
+    why: 'I want something to send my partner who stayed home — assembling it by hand after a week of talks is not happening.',
+    aiReply: 'Detected a post-conference side trip: 3 days, 96 photos, 5 stops from the city out to the national park and back. Drafting the diary now — here are the cover shots I picked for each day:',
+    keywords:['mountain', 'landscape', 'lake', 'hiking', 'forest', 'nature', 'sunset', 'travel', 'trip', 'view'],
+    nUserImages: 0, nAiImages: 4,
+  },
+  {
+    category: 'episodic',
+    name: 'Nora F.',
+    text: 'Find my photo with the big landmark statue outside the convention center — the one everyone takes a picture with.',
+    why: 'It\'s the most iconic shot from the trip and I want it for the recap, but it\'s buried under hundreds of other photos.',
+    aiReply: 'Found 5 photos of the landmark by the convention center. Best one: golden hour, you waving next to it. Showing your top 2:',
+    keywords:['statue', 'monument', 'landmark', 'city', 'street', 'building', 'view', 'plaza'],
+    nUserImages: 0, nAiImages: 2,
+  },
+  {
+    category: 'creative',
+    name: 'Owen H.',
+    text: 'Make me a 60-second recap reel of the whole conference trip — the city, the mountains, and the dinners.',
+    why: 'I want one thing to post that sums up the week without me reliving 400 photos to cut it.',
+    aiReply: 'You shot 412 photos that week. Picked 12 for the reel by variety + quality: the skyline, 2 mountain shots, the keynote crowd, and 3 dinners. 5s each = 60s. Here\'s a preview of 4 frames:',
+    keywords:['mountain', 'sunset', 'city', 'street', 'food', 'restaurant', 'people', 'group', 'view', 'landscape'],
+    nUserImages: 0, nAiImages: 4,
+  },
+  {
+    category: 'episodic',
+    name: 'Maya R.',
+    text: 'I photographed a ton of posters at the conference meaning to read them later. List every poster I shot and its title so I actually follow up.',
+    why: 'I have 60+ poster photos and zero memory of which ones I cared about — going through them one by one is exactly the chore I came here to avoid.',
+    aiReply: 'You photographed 63 posters over two days — 14 on generative models, 9 on 3D, 7 on video, the rest scattered. The 3 you shot most carefully (steady, well-lit, full title visible) are the ones you actually cared about. Showing those:',
+    keywords:['building', 'wall', 'sign', 'people', 'group', 'street'],
+    nUserImages: 0, nAiImages: 3,
+  },
+  {
+    category: 'episodic',
+    name: 'Kenji T.',
+    text: 'One poster was basically my next paper idea and I panicked and photographed it. Find it — I think it had a big red figure on the left.',
+    why: 'I need to know if I got scooped before I email my advisor at 2am — searching by what I remember beats scrolling 200 photos.',
+    aiReply: 'Found it — the poster from the Tuesday afternoon block. You took 4 shots (2 blurry, 2 readable). Good news: their method is retrieval-based, yours is end-to-end — you\'re fine. Here\'s your clearest shot:',
+    keywords:['wall', 'building', 'sign', 'people', 'group'],
+    nUserImages: 0, nAiImages: 1,
+  },
+  {
+    category: 'episodic',
+    name: 'Marco B.',
+    text: 'A speaker said "code and weights are on GitHub" and I snapped the slide with the QR. Find that photo — I need the repo.',
+    why: 'I have dozens of slide photos and the link only exists as a tiny QR in one of them — manual scrolling is hopeless.',
+    aiReply: 'Found it — the slide from the oral session, late morning. The QR resolves to a GitHub repo, and there\'s a second QR in your roll from a different talk too. Showing the slide with the code QR:',
+    keywords:['sign', 'wall', 'building', 'people', 'group'],
+    nUserImages: 0, nAiImages: 1,
+  },
+  {
+    category: 'semantic',
+    name: 'Aria D.',
+    text: 'Based on the talks and posters I\'ve already photographed, what should I prioritize in tomorrow\'s sessions?',
+    why: 'There are a dozen parallel tracks and I want AI to infer my real interests from what I actually stopped to shoot, not from the titles I think I like.',
+    aiReply: 'Your photos cluster hard: 41% generative video, 22% embodied agents, 15% efficient inference. Tomorrow\'s best matches: the long-video oral at 9am and the on-device block at 10:30. Here are the 3 photos that defined that profile:',
+    keywords:['building', 'wall', 'sign', 'people', 'group'],
+    nUserImages: 0, nAiImages: 3,
+  },
+  {
+    category: 'semantic',
+    name: 'Dev P.',
+    text: 'Sort all my photos of conference swag — stickers, tote bags, the weird stress toys — into one collage.',
+    why: 'I photographed every booth giveaway like a magpie and now I want to remember which company gave what.',
+    aiReply: 'Found 22 swag photos: 7 tote bags, 9 sticker sheets, 4 plushies, 2 keyboard giveaways. Tagged each by booth logo where visible. Building the collage — here\'s a preview:',
+    keywords:['gift', 'party', 'table', 'people', 'craft', 'group'],
+    nUserImages: 0, nAiImages: 3,
+  },
+  {
+    category: 'semantic',
+    name: 'Ravi G.',
+    text: 'Which demos did I photograph in the expo hall? I want to follow up with two startups.',
+    why: 'I shot a bunch of robots and screens without noting names — I need AI to pull the company off each booth banner.',
+    aiReply: 'Found 8 expo-hall demo photos: a robot arm, two AR headsets, a depth demo, and a humanoid that drew a crowd. Booth banners give me 5 of the 6 names. Showing the 3 you lingered on longest:',
+    keywords:['museum', 'people', 'group', 'building', 'view'],
+    nUserImages: 0, nAiImages: 3,
+  },
+  {
+    category: 'creative',
+    name: 'Yuna S.',
+    text: 'Pick the best photo from my own poster session to post online — one where I look approachable and the title is readable.',
+    why: 'I took 30 shots while friends stopped by; I want AI to choose the on-brand one instead of me agonizing for an hour.',
+    aiReply: 'Your poster session ran 12:30–2pm. Of 31 photos, the strongest for posting: you mid-explanation with two people leaning in, title legible, natural smile, nobody blinking. I drafted alt-text too. Top 3 candidates:',
+    keywords:['people', 'group', 'smile', 'portrait', 'friends'],
+    nUserImages: 0, nAiImages: 3,
+  },
+  {
+    category: 'creative',
+    name: 'Iris L.',
+    text: 'Reconstruct what I actually attended each day from my photos\' timestamps and locations.',
+    why: 'My planner app is a graveyard of good intentions; my camera roll is the real attendance record.',
+    aiReply: 'Reconstructed from 4 days of timestamps + room signage in your shots: Day 1 = 2 tutorials, Day 2 = keynote + 3 poster blocks, Day 3 = orals (you skipped the 2pm — a long gap suggests lunch), Day 4 = your poster + the expo. Here\'s the timeline I built:',
+    keywords:['sign', 'people', 'group', 'building', 'street'],
+    nUserImages: 0, nAiImages: 3,
+  },
+  {
+    category: 'episodic',
+    name: 'Hassan A.',
+    text: 'A friend sent me this poster photo and swears I was at the same session — do I have my own shot of it?',
+    why: 'I want to compare notes but I don\'t remember which day it was — matching their photo against mine is faster than asking around.',
+    aiReply: 'Matched — same poster, the Thursday session. You have 2 of your own shots, taken 6 minutes apart (you clearly circled back). Showing yours next to theirs:',
+    keywords:['wall', 'building', 'sign', 'people', 'group'],
+    nUserImages: 1, nAiImages: 2,
+  },
+  {
+    category: 'episodic',
+    name: 'Chloe W.',
+    text: 'Here\'s a group photo from the conference social — can you tell me who everyone is so I don\'t blank when I email them?',
+    why: 'I collected names and forgot them within the hour; the faces in the photo are my only hope.',
+    aiReply: 'From your other shots I can place 4 of the 6: two PhD students, a research scientist, and a professor you also photographed giving a talk. The other 2 I couldn\'t resolve. Showing the annotated photo:',
+    keywords:['group', 'people', 'smile', 'portrait', 'restaurant', 'party'],
+    nUserImages: 1, nAiImages: 1,
+  },
 ];
 
 // Stable color generator from a name string — gives each user a consistent
