@@ -5,6 +5,7 @@
 <p align="center">
   <a href="https://arxiv.org/abs/2606.05275"><img src="https://img.shields.io/badge/arXiv-paper-b31b1b.svg?logo=arxiv&logoColor=white" alt="arXiv"></a>
   <a href="https://thaoshibe.github.io/camroll/"><img src="https://img.shields.io/badge/Project-Page-2a6310.svg?logo=github&logoColor=white" alt="Project Page"></a>
+  <a href="https://huggingface.co/datasets/thaoshibe/camroll-yfcc20"><img src="https://img.shields.io/badge/%F0%9F%A4%97_Dataset-camroll--yfcc20-ffd21e.svg" alt="Dataset"></a>
   <a href="https://huggingface.co/spaces/thaoshibe/camroll-agent"><img src="https://img.shields.io/badge/%F0%9F%A4%97_Demo-Spaces-ffd21e.svg" alt="Demo"></a>
   <a href="page/demo.html"><img src="https://img.shields.io/badge/🚀_Demo-Live-ff6b35.svg" alt="Live Demo"></a>
 </p>
@@ -12,6 +13,52 @@
 > **TL;DR:** `camroll-agent` is an **AI agent** that does VQA on a personal camera roll.
 > 1. index your camera roll into a hierarchical queryable memory (events << captions << images).
 > 2. the agent answers questions over that memory using 5 atomic tools: `search`, `grep`, `list_by_date`, `get`, and `view_image`.
+
+---
+
+## 🤖 Run on your own photos with a coding agent
+
+<details>
+<summary><b>📋 Copy this prompt for your ClaudeCode/ Codex/ Cursors/ etc. !!!</b></summary>
+
+```text
+Hey, you need to set up "camroll" (https://github.com/thaoshibe/camroll), an AI agent
+that does visual question answering over a personal camera roll. Set it up and run
+it on MY photos. Ask me for anything you need, and show me every command you run.
+
+1. Clone https://github.com/thaoshibe/camroll and install it:
+     pip install -r requirements.txt
+     pip install -e camroll-agent/
+   (Use requirements_local.txt instead if I say I want to run fully local on a GPU.)
+
+2. Ask me for:
+     a) the absolute path to my photo folder, and
+     b) which backend to use — openai (needs OPENAI_API_KEY), gemini (needs
+        GEMINI_API_KEY), or local (needs a GPU, no key).
+   Help me export the API key if needed.
+
+3. Create a conversation JSON named my_album.json describing my camera roll:
+     - "root_folder": my photo folder (image paths can then be relative to it).
+     - "profile_image": one clear photo of me (ask me which, or pick a good one).
+     - "library_description": a one-line description of the album.
+     - "turns": one entry per photo, sorted by date, in this shape:
+         {"date": "YYYY-MM-DD", "user": {"image": "<path>"}}
+       Infer each photo's date from EXIF metadata; fall back to the filename or
+       the file's modified time; use "unknown" only if there is no date at all.
+   Then validate it (no API calls):
+     python -m camroll_agent inspect my_album.json
+
+4. Build + index the memory (replace <backend> with my choice):
+     python -m camroll_agent run my_album.json -o memory/ --vlm-backend <backend>
+
+5. Ask me what I want to know about my photos, then answer it:
+     python -m camroll_agent ask "<my question>" --memory memory/ --llm-backend <backend>
+
+Stop and confirm with me before anything that spends API credits or downloads
+large models (e.g. the local Qwen-VL weights are ~15 GB).
+```
+
+</details>
 
 ---
 
@@ -217,6 +264,42 @@ python -m camroll_agent ask "When did I go to Lake Michigan?" \
     --memory memory/ --no-stream
 ```
 
+## Dataset: `camroll-yfcc20`
+
+The evaluation benchmark is on the Hub:
+[**🤗 thaoshibe/camroll-yfcc20**](https://huggingface.co/datasets/thaoshibe/camroll-yfcc20).
+It contains **20 personal camera rolls** (~15,600 photos) sampled from
+[YFCC100M](https://multimediacommons.wordpress.com/yfcc100m-core-dataset/), each
+with multiple-choice questions about the album owner and their events.
+
+Each user folder is named by the owner's YFCC/Flickr id and contains:
+
+```
+<yfcc_user_id>/         # e.g. 10191539_N03
+├── images.zip          # the camera roll (~500–1000 JPEGs), zipped
+├── profile.jpg         # reference photo of the album owner
+├── album_data.json     # semantic_qa + episodic_qa (multiple choice; option "a" is the answer)
+└── metadata.csv        # per-image capture timestamp (image,datetaken)
+```
+
+**Download and unzip:**
+
+```bash
+pip install -U huggingface_hub
+hf download thaoshibe/camroll-yfcc20 --repo-type dataset --local-dir camroll-yfcc20
+
+cd camroll-yfcc20
+for z in */images.zip; do (cd "$(dirname "$z")" && unzip -q images.zip); done
+```
+
+**Run the agent on one user** — build a conversation JSON from a user's
+`images/` + `metadata.csv` (use `datetaken` as each photo's `date`), then:
+
+```bash
+python -m camroll_agent run camroll-yfcc20/10191539_N03/conversation.json -o memory/
+python -m camroll_agent ask "What color is my hair?" --memory memory/
+```
+
 ## Python API
 
 ```python
@@ -329,7 +412,7 @@ camroll-agent/
 ## Citation
 
 ```bibtex
-@misc{camroll,
+@misc{nguyen2026personalaiagentcamera,
       title={Personal AI Agent for Camera Roll VQA}, 
       author={Thao Nguyen and Krishna Kumar Singh and Donghyun Kim and Yong Jae Lee and Yuheng Li},
       year={2026},
