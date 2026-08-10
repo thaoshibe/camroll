@@ -6,6 +6,9 @@ inside the corresponding LLM client.
 """
 from __future__ import annotations
 
+import copy
+import os
+
 THOUGHT_DESC = (
     "One short sentence stating why you are calling this tool now and what "
     "you expect to learn. Required before any action."
@@ -18,7 +21,27 @@ KIND_DESC = (
 
 DATE_DESC = "ISO date YYYY-MM-DD. Optional."
 
-TOOLS: list[dict] = [
+def thought_in_args() -> bool:
+    """Whether tool schemas expose the legacy ``thought`` argument."""
+    return os.environ.get("CAMROLL_NO_THOUGHT_ARG", "0").lower() not in (
+        "1", "true", "yes", "on",
+    )
+
+
+def _strip_thought_arg(tools: list[dict]) -> list[dict]:
+    """Return tool schemas with reasoning moved out of function arguments."""
+    cleaned = copy.deepcopy(tools)
+    for tool in cleaned:
+        params = tool.get("function", {}).get("parameters", {})
+        params.get("properties", {}).pop("thought", None)
+        if isinstance(params.get("required"), list):
+            params["required"] = [
+                name for name in params["required"] if name != "thought"
+            ]
+    return cleaned
+
+
+_BASE_TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
@@ -144,5 +167,9 @@ TOOLS: list[dict] = [
         },
     },
 ]
+
+TOOLS: list[dict] = (
+    _BASE_TOOLS if thought_in_args() else _strip_thought_arg(_BASE_TOOLS)
+)
 
 TOOL_NAMES = [t["function"]["name"] for t in TOOLS]

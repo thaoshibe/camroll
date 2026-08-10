@@ -79,25 +79,10 @@ class GeminiVLM(VLMClient):
             )
             return resp.text or ""
 
-        if len(image_paths) == 1:
-            contents.extend([
-                "Image 1: current album image to process. "
-                "Base the caption and event decision on this image.",
-                _load_image(str(Path(image_paths[0]))),
-            ])
-        else:
-            for idx, path in enumerate(image_paths, start=1):
-                if idx == len(image_paths):
-                    label = (
-                        f"Image {idx}: current album image to process. "
-                        "Use this image for the caption and event decision."
-                    )
-                else:
-                    label = (
-                        f"Image {idx}: reference/profile image only. "
-                        "Do not caption this image and do not base the event on it."
-                    )
-                contents.extend([label, _load_image(str(Path(path)))])
+        # The prompt defines each image's role. Earlier images are not always
+        # profile/reference images: view_image may submit several peer photos
+        # together for comparison.
+        contents.extend(_load_image(str(Path(path))) for path in image_paths)
         resp = self._client.models.generate_content(
             model=self.model, contents=contents,
         )
